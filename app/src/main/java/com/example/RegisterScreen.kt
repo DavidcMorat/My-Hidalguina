@@ -3,6 +3,7 @@ package com.example
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.*
@@ -29,6 +30,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.ui.theme.*
+import com.example.ui.components.RevealButton
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -134,19 +136,18 @@ fun RegisterScreen(
 
             Spacer(modifier = Modifier.height(32.dp))
 
-            CompositionLocalProvider(androidx.compose.material3.LocalRippleConfiguration provides WhiteRippleConfiguration) {
-                Button(
-                    onClick = { authViewModel.signUpWithEmail(username, password) },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(50.dp),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = RedPrimary, contentColor = Color.White)
-                ) {
-                    Text("Registrarse", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.White)
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null, modifier = Modifier.size(20.dp), tint = Color.White)
-                }
+            RevealButton(
+                onClick = { authViewModel.signUpWithEmail(username, password) },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(50.dp),
+                backgroundColor = RedPrimary,
+                revealColor = Color(0xFFFF5252),
+                contentColor = Color.White
+            ) {
+                Text("Registrarse", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                Spacer(modifier = Modifier.width(8.dp))
+                Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null, modifier = Modifier.size(20.dp), tint = Color.White)
             }
 
             Spacer(modifier = Modifier.height(24.dp))
@@ -162,29 +163,28 @@ fun RegisterScreen(
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            CompositionLocalProvider(androidx.compose.material3.LocalRippleConfiguration provides PrimaryRippleConfiguration) {
-                OutlinedButton(
-                    onClick = {
-                        val activity = context as? android.app.Activity
-                        if (activity != null) {
-                            authViewModel.signInWithGoogleWeb(activity)
-                        }
-                    },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(50.dp),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = BlackTertiary, containerColor = Color.White),
-                    border = BorderStroke(1.dp, DividerGray)
-                ) {
-                    Image(
-                        painter = painterResource(id = R.drawable.ic_google),
-                        contentDescription = "Google Logo",
-                        modifier = Modifier.size(24.dp)
-                    )
-                    Spacer(modifier = Modifier.width(12.dp))
-                    Text("Registrarse con Google", color = BlackTertiary)
-                }
+            RevealButton(
+                onClick = {
+                    val activity = context as? android.app.Activity
+                    if (activity != null) {
+                        authViewModel.signInWithGoogleWeb(activity)
+                    }
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(50.dp)
+                    .border(BorderStroke(1.dp, DividerGray), RoundedCornerShape(12.dp)),
+                backgroundColor = Color.White,
+                revealColor = DividerGray,
+                contentColor = BlackTertiary
+            ) {
+                Image(
+                    painter = painterResource(id = R.drawable.ic_google),
+                    contentDescription = "Google Logo",
+                    modifier = Modifier.size(24.dp)
+                )
+                Spacer(modifier = Modifier.width(12.dp))
+                Text("Registrarse con Google", color = BlackTertiary)
             }
 
             Spacer(modifier = Modifier.weight(1f))
