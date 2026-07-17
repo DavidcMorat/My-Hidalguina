@@ -1,0 +1,6 @@
+{
+  "name": "My Hidalguina",
+  "description": "App escolar para estudiantes y docentes MFHF",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

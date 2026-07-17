@@ -1,0 +1,39 @@
+{
+  "project_info": {
+    "project_number": "573810459906",
+    "project_id": "appmfhf",
+    "storage_bucket": "appmfhf.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:573810459906:android:385cda9d797f97c5206e1b",
+        "android_client_info": {
+          "package_name": "com.triplebaka.myHidalguina.MF"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "573810459906-ct6dkb70mhln4ttfps2qt72u9ohsvvep.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyB4Bo1RBTXC8t-6ef0Ng-G8Zcod-xmHa28"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "573810459906-ct6dkb70mhln4ttfps2qt72u9ohsvvep.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
