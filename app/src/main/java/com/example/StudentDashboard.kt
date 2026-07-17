@@ -16,6 +16,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -30,18 +31,30 @@ import androidx.compose.ui.unit.sp
 import com.example.ui.theme.*
 
 @Composable
-fun StudentDashboard(modifier: Modifier = Modifier) {
+fun StudentDashboard(
+    modifier: Modifier = Modifier,
+    authViewModel: AuthViewModel = androidx.lifecycle.viewmodel.compose.viewModel(),
+    onLogout: () -> Unit = {}
+) {
+    var selectedTab by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf("Inicio") }
     Scaffold(
         modifier = modifier.fillMaxSize(),
-        bottomBar = { StudentBottomNavigation() }
+        bottomBar = { StudentBottomNavigation(selectedTab) { selectedTab = it } }
     ) { innerPadding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(BackgroundGray)
-                .padding(innerPadding)
-                .verticalScroll(rememberScrollState())
-        ) {
+        if (selectedTab == "Perfil") {
+            ProfileScreen(
+                modifier = Modifier.padding(innerPadding),
+                authViewModel = authViewModel,
+                onLogout = onLogout
+            )
+        } else {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(BackgroundGray)
+                    .padding(innerPadding)
+                    .verticalScroll(rememberScrollState())
+            ) {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -83,8 +96,10 @@ fun StudentDashboard(modifier: Modifier = Modifier) {
                         Spacer(modifier = Modifier.width(16.dp))
                         
                         Column {
+                            val user = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser
+                            val displayName = user?.displayName ?: "Estudiante"
                             Text(
-                                text = "¡Hola, David!",
+                                text = "¡Hola, $displayName!",
                                 fontSize = 24.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = BlackTertiary
@@ -278,6 +293,7 @@ fun StudentDashboard(modifier: Modifier = Modifier) {
                 Spacer(modifier = Modifier.height(24.dp))
             }
         }
+        }
     }
 }
 
@@ -365,7 +381,7 @@ fun ActivityItem(
 }
 
 @Composable
-fun StudentBottomNavigation() {
+fun StudentBottomNavigation(selectedTab: String, onTabSelected: (String) -> Unit) {
     NavigationBar(
         containerColor = Color.White,
         contentColor = TextGray,
@@ -374,8 +390,8 @@ fun StudentBottomNavigation() {
         NavigationBarItem(
             icon = { Icon(Icons.Filled.Home, contentDescription = "Inicio") },
             label = { Text("Inicio", fontSize = 10.sp, fontWeight = FontWeight.Bold) },
-            selected = true,
-            onClick = { /* TODO */ },
+            selected = selectedTab == "Inicio",
+            onClick = { onTabSelected("Inicio") },
             colors = NavigationBarItemDefaults.colors(
                 selectedIconColor = RedPrimary,
                 selectedTextColor = RedPrimary,
@@ -387,8 +403,8 @@ fun StudentBottomNavigation() {
         NavigationBarItem(
             icon = { Icon(Icons.Outlined.MenuBook, contentDescription = "Cursos") },
             label = { Text("Cursos", fontSize = 10.sp) },
-            selected = false,
-            onClick = { /* TODO */ },
+            selected = selectedTab == "Cursos",
+            onClick = { onTabSelected("Cursos") },
             colors = NavigationBarItemDefaults.colors(
                 unselectedIconColor = TextGray,
                 unselectedTextColor = TextGray
@@ -420,8 +436,8 @@ fun StudentBottomNavigation() {
         NavigationBarItem(
             icon = { Icon(Icons.Outlined.Chat, contentDescription = "Mensajes") },
             label = { Text("Mensajes", fontSize = 10.sp) },
-            selected = false,
-            onClick = { /* TODO */ },
+            selected = selectedTab == "Mensajes",
+            onClick = { onTabSelected("Mensajes") },
             colors = NavigationBarItemDefaults.colors(
                 unselectedIconColor = TextGray,
                 unselectedTextColor = TextGray
@@ -430,8 +446,8 @@ fun StudentBottomNavigation() {
         NavigationBarItem(
             icon = { Icon(Icons.Outlined.Person, contentDescription = "Perfil") },
             label = { Text("Perfil", fontSize = 10.sp) },
-            selected = false,
-            onClick = { /* TODO */ },
+            selected = selectedTab == "Perfil",
+            onClick = { onTabSelected("Perfil") },
             colors = NavigationBarItemDefaults.colors(
                 unselectedIconColor = TextGray,
                 unselectedTextColor = TextGray

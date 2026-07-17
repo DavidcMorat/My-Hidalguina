@@ -53,7 +53,13 @@ class MainActivity : ComponentActivity() {
                             )
                         }
                         composable("dashboard") {
-                            StudentDashboard()
+                            StudentDashboard(
+                                onLogout = {
+                                    navController.navigate("login") {
+                                        popUpTo("dashboard") { inclusive = true }
+                                    }
+                                }
+                            )
                         }
                     }
                 }

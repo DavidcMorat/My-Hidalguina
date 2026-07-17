@@ -40,7 +40,8 @@ fun RegisterScreen(
     onRegisterSuccess: () -> Unit = {},
     onNavigateToLogin: () -> Unit = {}
 ) {
-    var username by remember { mutableStateOf("") }
+    var email by remember { mutableStateOf("") }
+    var displayName by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var passwordVisible by remember { mutableStateOf(false) }
 
@@ -87,8 +88,27 @@ fun RegisterScreen(
             Spacer(modifier = Modifier.height(48.dp))
 
             OutlinedTextField(
-                value = username,
-                onValueChange = { username = it },
+                value = displayName,
+                onValueChange = { displayName = it },
+                modifier = Modifier.fillMaxWidth(),
+                placeholder = { Text("Nombre de usuario", color = TextGray) },
+                leadingIcon = { Icon(Icons.Filled.Person, contentDescription = null, tint = TextGray) },
+                shape = RoundedCornerShape(12.dp),
+                colors = OutlinedTextFieldDefaults.colors(
+                    unfocusedBorderColor = DividerGray,
+                    focusedBorderColor = RedPrimary,
+                    unfocusedContainerColor = Color.White,
+                    focusedContainerColor = Color.White,
+                    focusedTextColor = BlackTertiary,
+                    unfocusedTextColor = BlackTertiary
+                ),
+                singleLine = true
+            )
+            Spacer(modifier = Modifier.height(16.dp))
+
+            OutlinedTextField(
+                value = email,
+                onValueChange = { email = it },
                 modifier = Modifier.fillMaxWidth(),
                 placeholder = { Text("Correo electrónico", color = TextGray) },
                 leadingIcon = { Icon(Icons.Filled.Person, contentDescription = null, tint = TextGray) },
@@ -137,7 +157,7 @@ fun RegisterScreen(
             Spacer(modifier = Modifier.height(32.dp))
 
             RevealButton(
-                onClick = { authViewModel.signUpWithEmail(username, password) },
+                onClick = { authViewModel.signUpWithEmail(email, password, displayName) },
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(50.dp),
@@ -167,7 +187,7 @@ fun RegisterScreen(
                 onClick = {
                     val activity = context as? android.app.Activity
                     if (activity != null) {
-                        authViewModel.signInWithGoogleWeb(activity)
+                        authViewModel.signInWithGoogle(context)
                     }
                 },
                 modifier = Modifier

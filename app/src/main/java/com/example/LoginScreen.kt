@@ -42,7 +42,7 @@ fun LoginScreen(
     onNavigateToRegister: () -> Unit = {}
 ) {
     var selectedTabIndex by remember { mutableIntStateOf(0) }
-    var username by remember { mutableStateOf("") }
+    var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var passwordVisible by remember { mutableStateOf(false) }
     var rememberMe by remember { mutableStateOf(false) }
@@ -135,8 +135,8 @@ fun LoginScreen(
             Spacer(modifier = Modifier.height(24.dp))
 
             OutlinedTextField(
-                value = username,
-                onValueChange = { username = it },
+                value = email,
+                onValueChange = { email = it },
                 modifier = Modifier.fillMaxWidth(),
                 placeholder = { Text("Usuario o correo electrónico", color = TextGray) },
                 leadingIcon = { Icon(Icons.Filled.Person, contentDescription = null, tint = TextGray) },
@@ -208,7 +208,7 @@ fun LoginScreen(
             Spacer(modifier = Modifier.height(24.dp))
 
             RevealButton(
-                onClick = { authViewModel.signInWithEmail(username, password) },
+                onClick = { authViewModel.signInWithEmail(email, password) },
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(50.dp),
@@ -238,7 +238,7 @@ fun LoginScreen(
                 onClick = {
                     val activity = context as? android.app.Activity
                     if (activity != null) {
-                        authViewModel.signInWithGoogleWeb(activity)
+                        authViewModel.signInWithGoogle(context)
                     }
                 },
                 modifier = Modifier
