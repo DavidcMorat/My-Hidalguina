@@ -17,8 +17,8 @@ android {
     applicationId = "com.triplebaka.myHidalguina.MF"
     minSdk = 24
     targetSdk = 36
-    versionCode = 4
-    versionName = "0.0.4"
+    versionCode = 5
+    versionName = "0.0.5"
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
   }
@@ -124,7 +124,8 @@ dependencies {
   implementation(libs.androidx.navigation.compose)
   implementation(libs.androidx.room.ktx)
   implementation(libs.androidx.room.runtime)
-  // implementation(libs.coil.compose)
+  implementation(libs.coil.compose)
+  implementation(libs.coil.gif)
   implementation(libs.converter.moshi)
   implementation(libs.firebase.ai)
   // Uncomment to use Firestore:

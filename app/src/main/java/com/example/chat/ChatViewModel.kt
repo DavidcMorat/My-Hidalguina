@@ -9,6 +9,9 @@ import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -68,7 +71,25 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         )
     }
 
+    private val _favoritesPack = MutableStateFlow<StickerPack>(
+        StickerPack("favorites", "Favoritos ❤️", "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExMWhnM280cTFrbmdnYnptNXQ3N2l0amtrdGFleGlrczN1enJ1eDlpZCZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9cw/o7R0N2F/giphy.gif", emptyList())
+    )
+
+    val stickerPacks: StateFlow<List<StickerPack>> = _favoritesPack.map { favorites ->
+        listOf(favorites) + StickerManager.defaultPacks
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+
+    private val _giphySearchResults = MutableStateFlow<List<Sticker>>(emptyList())
+    val giphySearchResults: StateFlow<List<Sticker>> = _giphySearchResults
+
+    private val _isGiphySearching = MutableStateFlow(false)
+    val isGiphySearching: StateFlow<Boolean> = _isGiphySearching
+
     init {
+        // Load custom user stickers
+        loadFavorites()
+        loadTrendingGiphy()
+
         // Start listening to incoming messages when the viewmodel is created
         listenForIncomingMessages()
         
@@ -185,6 +206,73 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                         .set(firestoreMsg).await()
                 } catch (e: Exception) {
                     // Handle failure
+                }
+            }
+        }
+    }
+
+    fun loadFavorites() {
+        _favoritesPack.value = StickerManager.loadFavorites(getApplication())
+    }
+
+    fun loadTrendingGiphy() {
+        viewModelScope.launch {
+            _isGiphySearching.value = true
+            val trending = StickerManager.getTrendingGiphy()
+            _giphySearchResults.value = trending
+            _isGiphySearching.value = false
+        }
+    }
+
+    fun searchGiphy(query: String) {
+        if (query.isBlank()) {
+            loadTrendingGiphy()
+            return
+        }
+        viewModelScope.launch {
+            _isGiphySearching.value = true
+            val results = StickerManager.searchGiphy(query)
+            _giphySearchResults.value = results
+            _isGiphySearching.value = false
+        }
+    }
+
+    fun saveStickerToFavorites(urlOrBase64Data: String, isGif: Boolean): Boolean {
+        val saved = if (urlOrBase64Data.startsWith("http")) {
+            StickerManager.saveFavoriteSticker(
+                getApplication(),
+                id = "sticker_${System.currentTimeMillis()}",
+                url = urlOrBase64Data,
+                isGif = isGif
+            )
+        } else {
+            StickerManager.saveReceivedSticker(getApplication(), urlOrBase64Data, isGif) != null
+        }
+        if (saved) {
+            loadFavorites()
+        }
+        return saved
+    }
+
+    fun sendSticker(receiverId: String, sticker: Sticker) {
+        val url = sticker.url ?: ""
+        if (url.isNotEmpty()) {
+            val prefix = if (sticker.isGif) "[STICKER_GIF]:" else "[STICKER]:"
+            sendMessage(receiverId, prefix + url)
+        } else if (sticker.localPath != null) {
+            viewModelScope.launch(Dispatchers.IO) {
+                try {
+                    val file = java.io.File(sticker.localPath)
+                    if (file.exists()) {
+                        val bytes = file.readBytes()
+                        val base64Data = android.util.Base64.encodeToString(bytes, android.util.Base64.NO_WRAP)
+                        val prefix = if (sticker.isGif) "[STICKER_GIF]:" else "[STICKER]:"
+                        withContext(Dispatchers.Main) {
+                            sendMessage(receiverId, prefix + base64Data)
+                        }
+                    }
+                } catch (e: Exception) {
+                    e.printStackTrace()
                 }
             }
         }
