@@ -1,25 +1,16 @@
 package com.example
 
-import android.content.Context
-import androidx.credentials.CredentialManager
-import androidx.credentials.CustomCredential
-import androidx.credentials.GetCredentialRequest
-import androidx.credentials.GetCredentialResponse
-import androidx.credentials.exceptions.GetCredentialException
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.google.android.libraries.identity.googleid.GetGoogleIdOption
-import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
 import com.google.firebase.auth.FirebaseAuth
-import com.google.firebase.auth.GoogleAuthProvider
 import com.google.firebase.auth.UserProfileChangeRequest
+import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.SetOptions
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
-import java.security.MessageDigest
-import java.util.UUID
 
 sealed class AuthState {
     object Idle : AuthState()
@@ -30,13 +21,14 @@ sealed class AuthState {
 
 class AuthViewModel : ViewModel() {
     private val auth = FirebaseAuth.getInstance()
+    private val db = FirebaseFirestore.getInstance()
 
     private val _authState = MutableStateFlow<AuthState>(AuthState.Idle)
     val authState: StateFlow<AuthState> = _authState.asStateFlow()
 
     fun signInWithEmail(email: String, pass: String) {
         if (email.isBlank() || pass.isBlank()) {
-            _authState.value = AuthState.Error("Ingresa tu correo y contraseña")
+            _authState.value = AuthState.Error("Ingresa tu correo electrónico y contraseña")
             return
         }
         viewModelScope.launch {
@@ -50,8 +42,8 @@ class AuthViewModel : ViewModel() {
         }
     }
 
-    fun signUpWithEmail(email: String, pass: String, displayName: String) {
-        if (email.isBlank() || pass.isBlank() || displayName.isBlank()) {
+    fun signUpWithEmail(email: String, pass: String, username: String, studentName: String, grade: String, section: String) {
+        if (email.isBlank() || pass.isBlank() || username.isBlank() || studentName.isBlank() || grade.isBlank() || section.isBlank()) {
             _authState.value = AuthState.Error("Todos los campos son obligatorios")
             return
         }
@@ -62,9 +54,20 @@ class AuthViewModel : ViewModel() {
                 val user = result.user
                 if (user != null) {
                     val profileUpdates = UserProfileChangeRequest.Builder()
-                        .setDisplayName(displayName)
+                        .setDisplayName(username)
                         .build()
                     user.updateProfile(profileUpdates).await()
+                    
+                    // Save to Firestore
+                    val userData = hashMapOf(
+                        "uid" to user.uid,
+                        "displayName" to username,
+                        "studentName" to studentName,
+                        "grade" to grade,
+                        "section" to section,
+                        "email" to email
+                    )
+                    db.collection("users").document(user.uid).set(userData).await()
                 }
                 _authState.value = AuthState.Success
             } catch (e: Exception) {
@@ -87,61 +90,20 @@ class AuthViewModel : ViewModel() {
                         .setDisplayName(displayName)
                         .build()
                     user.updateProfile(profileUpdates).await()
+                    
+                    try {
+                        // Update in Firestore
+                        db.collection("users").document(user.uid).set(hashMapOf("displayName" to displayName), SetOptions.merge()).await()
+                    } catch (e: Exception) {
+                        // Ignore firestore permission errors for profile update if rules are strict
+                    }
+                    
                     _authState.value = AuthState.Success
                 } else {
                     _authState.value = AuthState.Error("Usuario no autenticado")
                 }
             } catch (e: Exception) {
                 _authState.value = AuthState.Error(e.message ?: "Error al actualizar el perfil")
-            }
-        }
-    }
-
-    fun signInWithGoogle(context: Context) {
-        viewModelScope.launch {
-            _authState.value = AuthState.Loading
-            try {
-                val credentialManager = CredentialManager.create(context)
-                
-                // Get WEB_CLIENT_ID from BuildConfig
-                val webClientId = BuildConfig.WEB_CLIENT_ID
-                if (webClientId.isNullOrBlank()) {
-                     _authState.value = AuthState.Error("Falta la configuración de Google (WEB_CLIENT_ID)")
-                     return@launch
-                }
-
-                val hashedNonce = UUID.randomUUID().toString()
-                
-                val googleIdOption = GetGoogleIdOption.Builder()
-                    .setFilterByAuthorizedAccounts(false)
-                    .setServerClientId(webClientId)
-                    .setNonce(hashedNonce)
-                    .build()
-                    
-                val request = GetCredentialRequest.Builder()
-                    .addCredentialOption(googleIdOption)
-                    .build()
-                    
-                val result = credentialManager.getCredential(
-                    request = request,
-                    context = context
-                )
-                
-                val credential = result.credential
-                if (credential is CustomCredential && credential.type == GoogleIdTokenCredential.TYPE_GOOGLE_ID_TOKEN_CREDENTIAL) {
-                    val googleIdTokenCredential = GoogleIdTokenCredential.createFrom(credential.data)
-                    val idToken = googleIdTokenCredential.idToken
-                    
-                    val firebaseCredential = GoogleAuthProvider.getCredential(idToken, null)
-                    auth.signInWithCredential(firebaseCredential).await()
-                    _authState.value = AuthState.Success
-                } else {
-                    _authState.value = AuthState.Error("Credencial no válida")
-                }
-            } catch (e: GetCredentialException) {
-                _authState.value = AuthState.Error(e.message ?: "Error al iniciar sesión con Google")
-            } catch (e: Exception) {
-                _authState.value = AuthState.Error(e.message ?: "Error al iniciar sesión con Google")
             }
         }
     }

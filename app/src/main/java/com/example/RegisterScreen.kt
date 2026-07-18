@@ -5,6 +5,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -41,7 +42,10 @@ fun RegisterScreen(
     onNavigateToLogin: () -> Unit = {}
 ) {
     var email by remember { mutableStateOf("") }
-    var displayName by remember { mutableStateOf("") }
+    var username by remember { mutableStateOf("") }
+    var studentName by remember { mutableStateOf("") }
+    var grade by remember { mutableStateOf("") }
+    var section by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var passwordVisible by remember { mutableStateOf(false) }
 
@@ -57,39 +61,56 @@ fun RegisterScreen(
     Box(modifier = modifier.fillMaxSize().background(BackgroundGray)) {
         // Top Decoration
         TopDecoration(modifier = Modifier.align(Alignment.TopCenter))
-
         // Bottom Decoration
         BottomDecoration(modifier = Modifier.align(Alignment.BottomCenter))
 
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(horizontal = 24.dp),
+                .padding(horizontal = 24.dp)
+                .verticalScroll(androidx.compose.foundation.rememberScrollState()),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Spacer(modifier = Modifier.height(48.dp))
-
+            
             Text(
                 text = "Crear Cuenta",
                 fontSize = 28.sp,
                 fontWeight = FontWeight.Bold,
                 color = Color.White
             )
-
             Spacer(modifier = Modifier.height(8.dp))
-
             Text(
                 text = "Regístrate para comenzar\ntu aprendizaje.",
                 fontSize = 14.sp,
                 color = Color.White,
                 textAlign = TextAlign.Center
             )
-
-            Spacer(modifier = Modifier.height(48.dp))
+            
+            Spacer(modifier = Modifier.height(32.dp))
 
             OutlinedTextField(
-                value = displayName,
-                onValueChange = { displayName = it },
+                value = studentName,
+                onValueChange = { studentName = it },
+                modifier = Modifier.fillMaxWidth(),
+                placeholder = { Text("Nombre de estudiante (No editable)", color = TextGray) },
+                leadingIcon = { Icon(Icons.Filled.Person, contentDescription = null, tint = TextGray) },
+                shape = RoundedCornerShape(12.dp),
+                colors = OutlinedTextFieldDefaults.colors(
+                    unfocusedBorderColor = DividerGray,
+                    focusedBorderColor = RedPrimary,
+                    unfocusedContainerColor = Color.White,
+                    focusedContainerColor = Color.White,
+                    focusedTextColor = BlackTertiary,
+                    unfocusedTextColor = BlackTertiary
+                ),
+                singleLine = true
+            )
+            Spacer(modifier = Modifier.height(16.dp))
+
+            OutlinedTextField(
+                value = username,
+                onValueChange = { username = it },
                 modifier = Modifier.fillMaxWidth(),
                 placeholder = { Text("Nombre de usuario", color = TextGray) },
                 leadingIcon = { Icon(Icons.Filled.Person, contentDescription = null, tint = TextGray) },
@@ -104,6 +125,43 @@ fun RegisterScreen(
                 ),
                 singleLine = true
             )
+            Spacer(modifier = Modifier.height(16.dp))
+            
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                OutlinedTextField(
+                    value = grade,
+                    onValueChange = { grade = it },
+                    modifier = Modifier.weight(1f),
+                    placeholder = { Text("Grado", color = TextGray) },
+                    shape = RoundedCornerShape(12.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        unfocusedBorderColor = DividerGray,
+                        focusedBorderColor = RedPrimary,
+                        unfocusedContainerColor = Color.White,
+                        focusedContainerColor = Color.White,
+                        focusedTextColor = BlackTertiary,
+                        unfocusedTextColor = BlackTertiary
+                    ),
+                    singleLine = true
+                )
+                
+                OutlinedTextField(
+                    value = section,
+                    onValueChange = { section = it },
+                    modifier = Modifier.weight(1f),
+                    placeholder = { Text("Sección", color = TextGray) },
+                    shape = RoundedCornerShape(12.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        unfocusedBorderColor = DividerGray,
+                        focusedBorderColor = RedPrimary,
+                        unfocusedContainerColor = Color.White,
+                        focusedContainerColor = Color.White,
+                        focusedTextColor = BlackTertiary,
+                        unfocusedTextColor = BlackTertiary
+                    ),
+                    singleLine = true
+                )
+            }
             Spacer(modifier = Modifier.height(16.dp))
 
             OutlinedTextField(
@@ -123,7 +181,6 @@ fun RegisterScreen(
                 ),
                 singleLine = true
             )
-
             Spacer(modifier = Modifier.height(16.dp))
 
             OutlinedTextField(
@@ -155,9 +212,8 @@ fun RegisterScreen(
             )
 
             Spacer(modifier = Modifier.height(32.dp))
-
             RevealButton(
-                onClick = { authViewModel.signUpWithEmail(email, password, displayName) },
+                onClick = { authViewModel.signUpWithEmail(email, password, username, studentName, grade, section) },
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(50.dp),
@@ -170,47 +226,10 @@ fun RegisterScreen(
                 Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null, modifier = Modifier.size(20.dp), tint = Color.White)
             }
 
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(32.dp))
 
             Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                HorizontalDivider(modifier = Modifier.weight(1f), color = DividerGray)
-                Text("O", modifier = Modifier.padding(horizontal = 16.dp), color = TextGray)
-                HorizontalDivider(modifier = Modifier.weight(1f), color = DividerGray)
-            }
-
-            Spacer(modifier = Modifier.height(24.dp))
-
-            RevealButton(
-                onClick = {
-                    val activity = context as? android.app.Activity
-                    if (activity != null) {
-                        authViewModel.signInWithGoogle(context)
-                    }
-                },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(50.dp)
-                    .border(BorderStroke(1.dp, DividerGray), RoundedCornerShape(12.dp)),
-                backgroundColor = Color.White,
-                revealColor = DividerGray,
-                contentColor = BlackTertiary
-            ) {
-                Image(
-                    painter = painterResource(id = R.drawable.ic_google),
-                    contentDescription = "Google Logo",
-                    modifier = Modifier.size(24.dp)
-                )
-                Spacer(modifier = Modifier.width(12.dp))
-                Text("Registrarse con Google", color = BlackTertiary)
-            }
-
-            Spacer(modifier = Modifier.weight(1f))
-
-            Row(
-                modifier = Modifier.padding(bottom = 160.dp),
+                modifier = Modifier.padding(bottom = 60.dp),
                 horizontalArrangement = Arrangement.Center
             ) {
                 Text("¿Ya tienes una cuenta? ", color = BlackTertiary, fontWeight = FontWeight.SemiBold)

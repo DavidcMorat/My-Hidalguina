@@ -37,11 +37,29 @@ fun StudentDashboard(
     onLogout: () -> Unit = {}
 ) {
     var selectedTab by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf("Inicio") }
+    var selectedChatUser by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf<com.example.chat.ChatUser?>(null) }
+    
     Scaffold(
         modifier = modifier.fillMaxSize(),
-        bottomBar = { StudentBottomNavigation(selectedTab) { selectedTab = it } }
+        bottomBar = { 
+            if (selectedChatUser == null) {
+                StudentBottomNavigation(selectedTab) { selectedTab = it }
+            }
+        }
     ) { innerPadding ->
-        if (selectedTab == "Perfil") {
+        if (selectedTab == "Mensajes") {
+            if (selectedChatUser != null) {
+                com.example.chat.ChatDetailScreen(
+                    user = selectedChatUser!!,
+                    onBack = { selectedChatUser = null }
+                )
+            } else {
+                com.example.chat.MessagesTab(
+                    modifier = Modifier.padding(innerPadding),
+                    onNavigateToChat = { selectedChatUser = it }
+                )
+            }
+        } else if (selectedTab == "Perfil") {
             ProfileScreen(
                 modifier = Modifier.padding(innerPadding),
                 authViewModel = authViewModel,
@@ -102,12 +120,12 @@ fun StudentDashboard(
                                 text = "¡Hola, $displayName!",
                                 fontSize = 24.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = BlackTertiary
+                                color = Color.White
                             )
                             Text(
                                 text = "Cada paso que das hoy\nte acerca a tu mejor versión.",
                                 fontSize = 14.sp,
-                                color = TextGray
+                                color = Color.White.copy(alpha = 0.9f)
                             )
                         }
                     }

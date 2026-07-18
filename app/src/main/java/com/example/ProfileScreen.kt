@@ -17,6 +17,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.ui.theme.*
+import kotlinx.coroutines.tasks.await
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -27,7 +28,23 @@ fun ProfileScreen(
 ) {
     val user = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser
     var displayName by remember { mutableStateOf(user?.displayName ?: "") }
+    var studentName by remember { mutableStateOf("") }
+    var grade by remember { mutableStateOf("") }
+    var section by remember { mutableStateOf("") }
     val authState by authViewModel.authState.collectAsState()
+
+    LaunchedEffect(user?.uid) {
+        val uid = user?.uid
+        if (uid != null) {
+            try {
+                val db = com.google.firebase.firestore.FirebaseFirestore.getInstance()
+                val doc = db.collection("users").document(uid).get().await()
+                studentName = doc.getString("studentName") ?: ""
+                grade = doc.getString("grade") ?: ""
+                section = doc.getString("section") ?: ""
+            } catch (e: Exception) {}
+        }
+    }
 
     Column(
         modifier = modifier
@@ -56,6 +73,13 @@ fun ProfileScreen(
         }
         
         Spacer(modifier = Modifier.height(32.dp))
+        
+        if (studentName.isNotEmpty()) {
+            Text("Estudiante: $studentName", fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = BlackTertiary)
+            Spacer(modifier = Modifier.height(4.dp))
+            Text("Grado: $grade | Sección: $section", fontSize = 14.sp, color = TextGray)
+            Spacer(modifier = Modifier.height(16.dp))
+        }
 
         OutlinedTextField(
             value = displayName,

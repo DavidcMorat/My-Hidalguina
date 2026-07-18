@@ -17,8 +17,8 @@ android {
     applicationId = "com.triplebaka.myHidalguina.MF"
     minSdk = 24
     targetSdk = 36
-    versionCode = 1
-    versionName = "0.0.2"
+    versionCode = 4
+    versionName = "0.0.4"
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
   }
@@ -128,7 +128,7 @@ dependencies {
   implementation(libs.converter.moshi)
   implementation(libs.firebase.ai)
   // Uncomment to use Firestore:
-  // implementation(libs.firebase.firestore)
+  implementation(libs.firebase.firestore)
 
   // Firebase Auth with Google Sign-In requires all of the following to be uncommented together.
   // If you are using Firebase Auth with other providers (e.g. Email/Password), you may only need
