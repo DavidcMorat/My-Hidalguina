@@ -1,6 +1,8 @@
 package com.example
 
-import androidx.lifecycle.ViewModel
+import android.app.Application
+import android.content.Context
+import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.UserProfileChangeRequest
@@ -19,7 +21,7 @@ sealed class AuthState {
     data class Error(val message: String) : AuthState()
 }
 
-class AuthViewModel : ViewModel() {
+class AuthViewModel(application: Application) : AndroidViewModel(application) {
     private val auth = FirebaseAuth.getInstance()
     private val db = FirebaseFirestore.getInstance()
 
@@ -58,6 +60,16 @@ class AuthViewModel : ViewModel() {
                         .build()
                     user.updateProfile(profileUpdates).await()
                     
+                    // Save locally in SharedPreferences as backup
+                    val sharedPrefs = getApplication<Application>().getSharedPreferences("user_profile_prefs", Context.MODE_PRIVATE)
+                    sharedPrefs.edit().apply {
+                        putString("studentName_backup_${user.uid}", studentName)
+                        putString("grade_backup_${user.uid}", grade)
+                        putString("section_backup_${user.uid}", section)
+                        putString("displayName_backup_${user.uid}", username)
+                        apply()
+                    }
+
                     // Save to Firestore
                     val userData = hashMapOf(
                         "uid" to user.uid,
@@ -67,7 +79,12 @@ class AuthViewModel : ViewModel() {
                         "section" to section,
                         "email" to email
                     )
-                    db.collection("users").document(user.uid).set(userData).await()
+                    try {
+                        db.collection("users").document(user.uid).set(userData).await()
+                    } catch (e: Exception) {
+                        // Log or ignore Firestore failures during sign up so the user is not stuck,
+                        // as they can now set/save these values directly in the Profile screen.
+                    }
                 }
                 _authState.value = AuthState.Success
             } catch (e: Exception) {
@@ -76,9 +93,9 @@ class AuthViewModel : ViewModel() {
         }
     }
 
-    fun updateDisplayName(displayName: String) {
-        if (displayName.isBlank()) {
-            _authState.value = AuthState.Error("El nombre no puede estar vacío")
+    fun updateProfile(displayName: String, studentName: String, grade: String, section: String) {
+        if (displayName.isBlank() || studentName.isBlank() || grade.isBlank() || section.isBlank()) {
+            _authState.value = AuthState.Error("Todos los campos son obligatorios")
             return
         }
         viewModelScope.launch {
@@ -91,12 +108,24 @@ class AuthViewModel : ViewModel() {
                         .build()
                     user.updateProfile(profileUpdates).await()
                     
-                    try {
-                        // Update in Firestore
-                        db.collection("users").document(user.uid).set(hashMapOf("displayName" to displayName), SetOptions.merge()).await()
-                    } catch (e: Exception) {
-                        // Ignore firestore permission errors for profile update if rules are strict
+                    // Save locally in SharedPreferences as backup
+                    val sharedPrefs = getApplication<Application>().getSharedPreferences("user_profile_prefs", Context.MODE_PRIVATE)
+                    sharedPrefs.edit().apply {
+                        putString("studentName_backup_${user.uid}", studentName)
+                        putString("grade_backup_${user.uid}", grade)
+                        putString("section_backup_${user.uid}", section)
+                        putString("displayName_backup_${user.uid}", displayName)
+                        apply()
                     }
+
+                    // Update in Firestore
+                    val userData = hashMapOf(
+                        "displayName" to displayName,
+                        "studentName" to studentName,
+                        "grade" to grade,
+                        "section" to section
+                    )
+                    db.collection("users").document(user.uid).set(userData, SetOptions.merge()).await()
                     
                     _authState.value = AuthState.Success
                 } else {
@@ -106,5 +135,9 @@ class AuthViewModel : ViewModel() {
                 _authState.value = AuthState.Error(e.message ?: "Error al actualizar el perfil")
             }
         }
+    }
+
+    fun clearAuthState() {
+        _authState.value = AuthState.Idle
     }
 }

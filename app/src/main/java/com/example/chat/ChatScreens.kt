@@ -38,7 +38,7 @@ fun MessagesTab(
     var searchQuery by remember { mutableStateOf("") }
     var showDirectory by remember { mutableStateOf(false) }
     val searchResults by chatViewModel.searchResults.collectAsState()
-    val localUsers by chatViewModel.localUsers.collectAsState(initial = emptyList())
+    val localUsersWithStatus by chatViewModel.localUsersWithStatus.collectAsState(initial = emptyList())
     val classroomUsers by chatViewModel.classroomUsers.collectAsState()
     val isSearching by chatViewModel.isSearching.collectAsState()
 
@@ -46,7 +46,11 @@ fun MessagesTab(
         Text("Mensajes", fontSize = 24.sp, fontWeight = FontWeight.Bold, color = BlackTertiary)
         Spacer(modifier = Modifier.height(16.dp))
         
-        Row(verticalAlignment = Alignment.CenterVertically) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
             OutlinedTextField(
                 value = searchQuery,
                 onValueChange = { 
@@ -54,7 +58,7 @@ fun MessagesTab(
                     chatViewModel.searchUser(it)
                 },
                 modifier = Modifier.weight(1f),
-                placeholder = { Text("Buscar estudiante de tu salón") },
+                placeholder = { Text("Buscar estudiante o usuario") },
                 leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
                 shape = RoundedCornerShape(12.dp),
                 colors = OutlinedTextFieldDefaults.colors(
@@ -67,6 +71,16 @@ fun MessagesTab(
                 ),
                 singleLine = true
             )
+            Button(
+                onClick = { 
+                    chatViewModel.searchUser(searchQuery)
+                },
+                shape = RoundedCornerShape(12.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = RedPrimary),
+                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp)
+            ) {
+                Text("Buscar", color = Color.White, fontWeight = FontWeight.Bold)
+            }
         }
         Spacer(modifier = Modifier.height(16.dp))
         
@@ -114,10 +128,15 @@ fun MessagesTab(
                         }
                     }
                 } else {
-                    items(localUsers) { user ->
-                        UserListItem(user = user, onClick = { onNavigateToChat(user) })
+                    items(localUsersWithStatus) { status ->
+                        UserListItem(
+                            user = status.user,
+                            lastMessage = status.lastMessageText,
+                            hasUnread = status.hasUnread,
+                            onClick = { onNavigateToChat(status.user) }
+                        )
                     }
-                    if (localUsers.isEmpty()) {
+                    if (localUsersWithStatus.isEmpty()) {
                         item {
                             Text(
                                 "Aún no tienes chats.",
@@ -134,7 +153,12 @@ fun MessagesTab(
 }
 
 @Composable
-fun UserListItem(user: ChatUser, onClick: () -> Unit) {
+fun UserListItem(
+    user: ChatUser, 
+    lastMessage: String = "",
+    hasUnread: Boolean = false,
+    onClick: () -> Unit
+) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -146,13 +170,61 @@ fun UserListItem(user: ChatUser, onClick: () -> Unit) {
         verticalAlignment = Alignment.CenterVertically
     ) {
         Box(
-            modifier = Modifier.size(40.dp).clip(CircleShape).background(YellowSecondary),
+            modifier = Modifier
+                .size(40.dp)
+                .clip(CircleShape)
+                .background(if (hasUnread) RedPrimary else YellowSecondary),
             contentAlignment = Alignment.Center
         ) {
             Icon(Icons.Filled.Person, contentDescription = null, tint = Color.White)
         }
         Spacer(modifier = Modifier.width(16.dp))
-        Text(user.displayName, fontWeight = FontWeight.Bold, color = BlackTertiary)
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = user.displayName, 
+                fontWeight = if (hasUnread) FontWeight.Bold else FontWeight.SemiBold, 
+                color = BlackTertiary,
+                fontSize = 16.sp
+            )
+            if (lastMessage.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(
+                    text = lastMessage,
+                    color = if (hasUnread) BlackTertiary else TextGray,
+                    fontSize = 13.sp,
+                    maxLines = 1,
+                    fontWeight = if (hasUnread) FontWeight.Bold else FontWeight.Normal
+                )
+            }
+        }
+        if (hasUnread) {
+            Spacer(modifier = Modifier.width(8.dp))
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(RedPrimary)
+                    .padding(horizontal = 8.dp, vertical = 4.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(6.dp)
+                            .clip(CircleShape)
+                            .background(Color.White)
+                    )
+                    Text(
+                        text = "NUEVO", 
+                        color = Color.White, 
+                        fontSize = 9.sp, 
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+        }
     }
 }
 
@@ -165,6 +237,10 @@ fun ChatDetailScreen(
 ) {
     val messages by chatViewModel.getMessages(user.uid).collectAsState(initial = emptyList())
     var text by remember { mutableStateOf("") }
+
+    LaunchedEffect(user.uid) {
+        chatViewModel.markChatAsRead(user.uid)
+    }
 
     Scaffold(
         topBar = {

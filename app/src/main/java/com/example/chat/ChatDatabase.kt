@@ -34,6 +34,9 @@ interface ChatDao {
     @Query("SELECT * FROM messages WHERE (senderId = :otherUserId AND receiverId = :myUserId) OR (senderId = :myUserId AND receiverId = :otherUserId) ORDER BY timestamp ASC")
     fun getMessagesWithUser(myUserId: String, otherUserId: String): Flow<List<ChatMessage>>
 
+    @Query("SELECT * FROM messages")
+    fun getAllMessagesFlow(): Flow<List<ChatMessage>>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     fun insertMessage(message: ChatMessage): Long
 }

@@ -1,16 +1,25 @@
 package com.example.chat
 
 import android.app.Application
+import android.content.Context
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.tasks.await
+
+data class ChatUserWithStatus(
+    val user: ChatUser,
+    val lastTimestamp: Long,
+    val hasUnread: Boolean,
+    val lastMessageText: String
+)
 
 class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private val db = FirebaseFirestore.getInstance()
@@ -29,8 +38,35 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private val _isSearching = MutableStateFlow(false)
     val isSearching: StateFlow<Boolean> = _isSearching
 
+    // Unread status triggers
+    private val _unreadTrigger = MutableStateFlow(0)
+
     // Local chats list
     val localUsers = chatDao.getAllUsers()
+
+    val localUsersWithStatus = combine(
+        chatDao.getAllUsers(),
+        chatDao.getAllMessagesFlow(),
+        _unreadTrigger
+    ) { users, messages, _ ->
+        users.map { user ->
+            val userMessages = messages.filter { 
+                (it.senderId == myUid && it.receiverId == user.uid) || 
+                (it.senderId == user.uid && it.receiverId == myUid)
+            }
+            val lastMsg = userMessages.maxByOrNull { it.timestamp }
+            val lastTimestamp = lastMsg?.timestamp ?: 0L
+            val lastText = lastMsg?.text ?: ""
+            
+            val sharedPrefs = getApplication<Application>().getSharedPreferences("chat_unread_prefs", Context.MODE_PRIVATE)
+            val hasUnread = sharedPrefs.getBoolean("unread_${user.uid}", false)
+            
+            ChatUserWithStatus(user, lastTimestamp, hasUnread, lastText)
+        }.sortedWith(
+            compareByDescending<ChatUserWithStatus> { it.hasUnread }
+                .thenByDescending { it.lastTimestamp }
+        )
+    }
 
     init {
         // Start listening to incoming messages when the viewmodel is created
@@ -53,9 +89,15 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private fun loadClassroomUsers() {
         viewModelScope.launch {
             try {
-                val myDoc = db.collection("users").document(myUid).get().await()
-                val grade = myDoc.getString("grade") ?: return@launch
-                val section = myDoc.getString("section") ?: return@launch
+                val myDoc = try {
+                    db.collection("users").document(myUid).get().await()
+                } catch (e: Exception) {
+                    null
+                }
+                
+                val sharedPrefs = getApplication<Application>().getSharedPreferences("user_profile_prefs", android.content.Context.MODE_PRIVATE)
+                val grade = myDoc?.getString("grade") ?: sharedPrefs.getString("grade_backup_$myUid", null) ?: return@launch
+                val section = myDoc?.getString("section") ?: sharedPrefs.getString("section_backup_$myUid", null) ?: return@launch
                 
                 val result = db.collection("users")
                     .whereEqualTo("grade", grade)
@@ -63,15 +105,22 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     .get().await()
                     
                 val users = result.documents.mapNotNull { doc ->
-                    val uid = doc.getString("uid")
-                    val displayName = doc.getString("displayName")
-                    val studentName = doc.getString("studentName")
-                    // We can just append studentName to displayName for search purposes, 
-                    // or just use displayName if we only have ChatUser(uid, displayName)
-                    if (uid != null && displayName != null) {
-                        val fullName = if (studentName != null) "$displayName ($studentName)" else displayName
-                        ChatUser(uid, fullName)
-                    } else null
+                    val uid = doc.getString("uid") ?: doc.id
+                    if (uid == myUid) return@mapNotNull null
+                    
+                    val displayName = doc.getString("displayName") ?: ""
+                    val studentName = doc.getString("studentName") ?: ""
+                    
+                    val display = if (studentName.isNotEmpty() && displayName.isNotEmpty()) {
+                        "$studentName ($displayName)"
+                    } else if (studentName.isNotEmpty()) {
+                        studentName
+                    } else if (displayName.isNotEmpty()) {
+                        displayName
+                    } else {
+                        "Estudiante"
+                    }
+                    ChatUser(uid, display)
                 }
                 _classroomUsers.value = users
             } catch (e: Exception) {
@@ -141,6 +190,12 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    fun markChatAsRead(otherUserId: String) {
+        val sharedPrefs = getApplication<Application>().getSharedPreferences("chat_unread_prefs", android.content.Context.MODE_PRIVATE)
+        sharedPrefs.edit().putBoolean("unread_$otherUserId", false).apply()
+        _unreadTrigger.value += 1
+    }
+
     private fun listenForIncomingMessages() {
         if (myUid.isEmpty()) return
         
@@ -149,6 +204,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 if (error != null || snapshot == null) return@addSnapshotListener
                 
                 viewModelScope.launch {
+                    var hasNewUnread = false
                     for (doc in snapshot.documents) {
                         val senderId = doc.getString("senderId") ?: continue
                         val text = doc.getString("text") ?: continue
@@ -160,11 +216,21 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                         if (user == null) {
                             try {
                                 val userDoc = db.collection("users").document(senderId).get().await()
-                                val displayName = userDoc.getString("displayName") ?: "Desconocido"
-                                user = ChatUser(senderId, displayName)
+                                val displayName = userDoc.getString("displayName") ?: ""
+                                val studentName = userDoc.getString("studentName") ?: ""
+                                val display = if (studentName.isNotEmpty() && displayName.isNotEmpty()) {
+                                    "$studentName ($displayName)"
+                                } else if (studentName.isNotEmpty()) {
+                                    studentName
+                                } else if (displayName.isNotEmpty()) {
+                                    displayName
+                                } else {
+                                    "Compañero"
+                                }
+                                user = ChatUser(senderId, display)
                                 withContext(Dispatchers.IO) { chatDao.insertUser(user) }
                             } catch (e: Exception) {
-                                user = ChatUser(senderId, "Desconocido")
+                                user = ChatUser(senderId, "Compañero")
                                 withContext(Dispatchers.IO) { chatDao.insertUser(user) }
                             }
                         }
@@ -180,10 +246,19 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                         
                         withContext(Dispatchers.IO) { chatDao.insertMessage(chatMessage) }
                         
+                        if (senderId != myUid) {
+                            val sharedPrefs = getApplication<Application>().getSharedPreferences("chat_unread_prefs", android.content.Context.MODE_PRIVATE)
+                            sharedPrefs.edit().putBoolean("unread_$senderId", true).apply()
+                            hasNewUnread = true
+                        }
+                        
                         // Delete from Firestore to maintain privacy
                         db.collection("messages").document(myUid)
                             .collection("pending").document(id)
                             .delete()
+                    }
+                    if (hasNewUnread) {
+                        _unreadTrigger.value += 1
                     }
                 }
             }

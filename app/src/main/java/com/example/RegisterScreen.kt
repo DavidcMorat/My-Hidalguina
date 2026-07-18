@@ -130,7 +130,11 @@ fun RegisterScreen(
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                 OutlinedTextField(
                     value = grade,
-                    onValueChange = { grade = it },
+                    onValueChange = { newValue ->
+                        if (newValue.length <= 1 && (newValue.isEmpty() || newValue.all { it.isDigit() })) {
+                            grade = newValue
+                        }
+                    },
                     modifier = Modifier.weight(1f),
                     placeholder = { Text("Grado", color = TextGray) },
                     shape = RoundedCornerShape(12.dp),
@@ -147,7 +151,14 @@ fun RegisterScreen(
                 
                 OutlinedTextField(
                     value = section,
-                    onValueChange = { section = it },
+                    onValueChange = { newValue ->
+                        if (newValue.length <= 1) {
+                            val upper = newValue.uppercase()
+                            if (upper.isEmpty() || upper.all { it.isLetter() }) {
+                                section = upper
+                            }
+                        }
+                    },
                     modifier = Modifier.weight(1f),
                     placeholder = { Text("Sección", color = TextGray) },
                     shape = RoundedCornerShape(12.dp),
