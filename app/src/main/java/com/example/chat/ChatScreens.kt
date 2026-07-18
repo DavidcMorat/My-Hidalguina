@@ -243,7 +243,7 @@ fun ChatDetailScreen(
 
 @Composable
 fun MessageBubble(msg: ChatMessage) {
-    val formatter = remember { SimpleDateFormat("HH:mm", Locale.getDefault()) }
+    val formatter = remember { SimpleDateFormat("hh:mm a", Locale.getDefault()) }
     val time = formatter.format(Date(msg.timestamp))
     
     val now = System.currentTimeMillis()

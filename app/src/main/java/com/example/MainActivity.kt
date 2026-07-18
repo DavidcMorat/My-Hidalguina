@@ -21,11 +21,13 @@ class MainActivity : ComponentActivity() {
         setContent {
             MyApplicationTheme {
                 val navController = rememberNavController()
+                val currentUser = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser
+                val startDest = if (currentUser != null) "dashboard" else "login"
                 
                 Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
                     NavHost(
                         navController = navController,
-                        startDestination = "login",
+                        startDestination = startDest,
                         modifier = Modifier.padding(innerPadding)
                     ) {
                         composable("login") {
