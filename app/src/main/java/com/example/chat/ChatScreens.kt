@@ -411,20 +411,12 @@ fun MessageBubble(
                 }
                 
                 val imageLoader = remember(context) {
-                    val okHttpClient = okhttp3.OkHttpClient.Builder()
-                        .addInterceptor { chain ->
-                            val request = chain.request().newBuilder()
-                                .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36")
-                                .build()
-                            chain.proceed(request)
-                        }
-                        .build()
                     ImageLoader.Builder(context)
-                        .okHttpClient(okHttpClient)
                         .components {
-                            add(GifDecoder.Factory())
                             if (android.os.Build.VERSION.SDK_INT >= 28) {
                                 add(ImageDecoderDecoder.Factory())
+                            } else {
+                                add(GifDecoder.Factory())
                             }
                         }
                         .build()
@@ -469,7 +461,10 @@ fun MessageBubble(
                         contentAlignment = Alignment.Center
                     ) {
                         AsyncImage(
-                            model = model,
+                            model = coil.request.ImageRequest.Builder(context)
+                                .data(model)
+                                .crossfade(true)
+                                .build(),
                             contentDescription = "Sticker",
                             imageLoader = imageLoader,
                             modifier = Modifier.fillMaxSize(),
@@ -565,20 +560,12 @@ fun StickersPanel(
     val context = LocalContext.current
 
     val imageLoader = remember(context) {
-        val okHttpClient = okhttp3.OkHttpClient.Builder()
-            .addInterceptor { chain ->
-                val request = chain.request().newBuilder()
-                    .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36")
-                    .build()
-                chain.proceed(request)
-            }
-            .build()
         ImageLoader.Builder(context)
-            .okHttpClient(okHttpClient)
             .components {
-                add(GifDecoder.Factory())
                 if (android.os.Build.VERSION.SDK_INT >= 28) {
                     add(ImageDecoderDecoder.Factory())
+                } else {
+                    add(GifDecoder.Factory())
                 }
             }
             .build()
@@ -700,7 +687,10 @@ fun StickersPanel(
                                 else -> sticker.url ?: ""
                             }
                             AsyncImage(
-                                model = model,
+                                model = coil.request.ImageRequest.Builder(context)
+                                    .data(model)
+                                    .crossfade(true)
+                                    .build(),
                                 contentDescription = null,
                                 imageLoader = imageLoader,
                                 modifier = Modifier.fillMaxSize(),

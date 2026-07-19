@@ -9,6 +9,7 @@ import okhttp3.Request
 import org.json.JSONObject
 import java.io.File
 import java.io.FileOutputStream
+import com.example.BuildConfig
 
 data class Sticker(
     val id: String,
@@ -32,11 +33,7 @@ object StickerManager {
     val defaultPacks = emptyList<StickerPack>()
 
     private val GIPHY_KEYS = listOf(
-        "CdRLa66RNo3fS",
-        "0UTRbFco6Y276gMCHm7v8A38883rrJg8",
-        "3ePst77Z9b7v5Q79bMAFUhRLD0F2DJ3E",
-        "mCObK2SjXgL5m3bM67H7fKLeD28rrJg8",
-        "dc6zaTOxFJmzC"
+        BuildConfig.GIPHY_API_KEY
     )
 
     private fun parseGiphyResponse(bodyString: String): List<Sticker> {
@@ -179,11 +176,15 @@ object StickerManager {
         }
         
         // Final ultimate local fallback so the tab is NEVER empty
-        val fallbackList = mutableListOf<Sticker>()
-        for (pack in defaultPacks) {
-            fallbackList.addAll(pack.stickers)
-        }
-        fallbackList.shuffled()
+        val fallbackList = listOf(
+            Sticker("fallback_1", "giphy", "https://i.giphy.com/8g7S0O63678031v8Uj.gif", isGif = true),
+            Sticker("fallback_2", "giphy", "https://i.giphy.com/3oriffitOfuTj9X0Nq.gif", isGif = true),
+            Sticker("fallback_3", "giphy", "https://i.giphy.com/P8EonNrrfK83O6663E.gif", isGif = true),
+            Sticker("fallback_4", "giphy", "https://i.giphy.com/vNf16SIsA98S5uA6uL.gif", isGif = true),
+            Sticker("fallback_5", "giphy", "https://i.giphy.com/M6LgO0U.gif", isGif = true),
+            Sticker("fallback_6", "giphy", "https://i.giphy.com/o7R0N2F.gif", isGif = true)
+        )
+        fallbackList
     }
 
     // Search stickers on Giphy
@@ -217,16 +218,16 @@ object StickerManager {
             return@withContext tenorList
         }
         
-        // Local keyword search over built-in stickers as final fallback
-        val fallbackList = mutableListOf<Sticker>()
-        for (pack in defaultPacks) {
-            fallbackList.addAll(pack.stickers)
-        }
-        val results = fallbackList.filter { 
-            it.id.contains(query, ignoreCase = true) || 
-            it.packId.contains(query, ignoreCase = true) 
-        }
-        if (results.isNotEmpty()) results else fallbackList.shuffled().take(8)
+        // Final fallback so the search is NEVER empty
+        val fallbackList = listOf(
+            Sticker("fallback_1", "giphy", "https://i.giphy.com/8g7S0O63678031v8Uj.gif", isGif = true),
+            Sticker("fallback_2", "giphy", "https://i.giphy.com/3oriffitOfuTj9X0Nq.gif", isGif = true),
+            Sticker("fallback_3", "giphy", "https://i.giphy.com/P8EonNrrfK83O6663E.gif", isGif = true),
+            Sticker("fallback_4", "giphy", "https://i.giphy.com/vNf16SIsA98S5uA6uL.gif", isGif = true),
+            Sticker("fallback_5", "giphy", "https://i.giphy.com/M6LgO0U.gif", isGif = true),
+            Sticker("fallback_6", "giphy", "https://i.giphy.com/o7R0N2F.gif", isGif = true)
+        )
+        fallbackList
     }
 
     // Save sticker as favorite to SharedPreferences
