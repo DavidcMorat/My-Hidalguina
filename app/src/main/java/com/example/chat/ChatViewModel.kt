@@ -31,6 +31,12 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
 
     val myUid = auth.currentUser?.uid ?: ""
 
+    // Active chat screen tracking to prevent showing duplicate notifications
+    var activeChatUserId: String? = null
+
+    // Set of processed message IDs to prevent duplicate notification spam and double-processing
+    private val processedMessageIds = java.util.Collections.synchronizedSet(HashSet<String>())
+
     // State for user search
     private val _searchResults = MutableStateFlow<List<ChatUser>>(emptyList())
     val searchResults: StateFlow<List<ChatUser>> = _searchResults
@@ -86,6 +92,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     val isGiphySearching: StateFlow<Boolean> = _isGiphySearching
 
     init {
+        createNotificationChannel()
         // Load custom user stickers
         loadFavorites()
         loadTrendingGiphy()
@@ -201,11 +208,13 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 )
                 
                 try {
+                    // Optimized: Use arrayUnion to append message in a single operation without creating new documents
                     db.collection("messages").document(receiverId)
-                        .collection("pending").document(messageId)
-                        .set(firestoreMsg).await()
+                        .update("pending_list", com.google.firebase.firestore.FieldValue.arrayUnion(firestoreMsg)).await()
                 } catch (e: Exception) {
-                    // Handle failure
+                    // If the document doesn't exist yet, we create it
+                    db.collection("messages").document(receiverId)
+                        .set(hashMapOf("pending_list" to listOf(firestoreMsg)), com.google.firebase.firestore.SetOptions.merge()).await()
                 }
             }
         }
@@ -287,68 +296,215 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private fun listenForIncomingMessages() {
         if (myUid.isEmpty()) return
         
+        // Listen to legacy pending collection (batch delete optimization)
         db.collection("messages").document(myUid).collection("pending")
             .addSnapshotListener { snapshot, error ->
-                if (error != null || snapshot == null) return@addSnapshotListener
+                if (error != null || snapshot == null || snapshot.isEmpty) return@addSnapshotListener
                 
                 viewModelScope.launch {
                     var hasNewUnread = false
+                    val batch = db.batch()
+                    var batchCount = 0
+                    
                     for (doc in snapshot.documents) {
                         val senderId = doc.getString("senderId") ?: continue
                         val text = doc.getString("text") ?: continue
                         val timestamp = doc.getLong("timestamp") ?: System.currentTimeMillis()
                         val id = doc.getString("id") ?: continue
 
-                        // We need to ensure we know the sender. If we don't, fetch their name from Firestore
-                        var user = withContext(Dispatchers.IO) { chatDao.getUser(senderId) }
-                        if (user == null) {
-                            try {
-                                val userDoc = db.collection("users").document(senderId).get().await()
-                                val displayName = userDoc.getString("displayName") ?: ""
-                                val studentName = userDoc.getString("studentName") ?: ""
-                                val display = if (studentName.isNotEmpty() && displayName.isNotEmpty()) {
-                                    "$studentName ($displayName)"
-                                } else if (studentName.isNotEmpty()) {
-                                    studentName
-                                } else if (displayName.isNotEmpty()) {
-                                    displayName
-                                } else {
-                                    "Compañero"
+                        val isAlreadyProcessed = !processedMessageIds.add(id)
+
+                        if (!isAlreadyProcessed) {
+                            // We need to ensure we know the sender. If we don't, fetch their name from Firestore
+                            var user = withContext(Dispatchers.IO) { chatDao.getUser(senderId) }
+                            if (user == null) {
+                                try {
+                                    val userDoc = db.collection("users").document(senderId).get().await()
+                                    val displayName = userDoc.getString("displayName") ?: ""
+                                    val studentName = userDoc.getString("studentName") ?: ""
+                                    val display = if (studentName.isNotEmpty() && displayName.isNotEmpty()) {
+                                        "$studentName ($displayName)"
+                                    } else if (studentName.isNotEmpty()) {
+                                        studentName
+                                    } else if (displayName.isNotEmpty()) {
+                                        displayName
+                                    } else {
+                                        "Compañero"
+                                    }
+                                    user = ChatUser(senderId, display)
+                                    withContext(Dispatchers.IO) { chatDao.insertUser(user) }
+                                } catch (e: Exception) {
+                                    user = ChatUser(senderId, "Compañero")
+                                    withContext(Dispatchers.IO) { chatDao.insertUser(user) }
                                 }
-                                user = ChatUser(senderId, display)
-                                withContext(Dispatchers.IO) { chatDao.insertUser(user) }
-                            } catch (e: Exception) {
-                                user = ChatUser(senderId, "Compañero")
-                                withContext(Dispatchers.IO) { chatDao.insertUser(user) }
+                            }
+
+                            val chatMessage = ChatMessage(
+                                id = id,
+                                senderId = senderId,
+                                receiverId = myUid,
+                                text = text,
+                                timestamp = timestamp,
+                                isSentByMe = false
+                            )
+                            
+                            withContext(Dispatchers.IO) { chatDao.insertMessage(chatMessage) }
+                            
+                            if (senderId != myUid) {
+                                val sharedPrefs = getApplication<Application>().getSharedPreferences("chat_unread_prefs", android.content.Context.MODE_PRIVATE)
+                                sharedPrefs.edit().putBoolean("unread_$senderId", true).apply()
+                                hasNewUnread = true
+                                if (senderId != activeChatUserId) {
+                                    showNotification(senderId, user?.displayName ?: "Compañero", text)
+                                }
                             }
                         }
-
-                        val chatMessage = ChatMessage(
-                            id = id,
-                            senderId = senderId,
-                            receiverId = myUid,
-                            text = text,
-                            timestamp = timestamp,
-                            isSentByMe = false
-                        )
                         
-                        withContext(Dispatchers.IO) { chatDao.insertMessage(chatMessage) }
-                        
-                        if (senderId != myUid) {
-                            val sharedPrefs = getApplication<Application>().getSharedPreferences("chat_unread_prefs", android.content.Context.MODE_PRIVATE)
-                            sharedPrefs.edit().putBoolean("unread_$senderId", true).apply()
-                            hasNewUnread = true
-                        }
-                        
-                        // Delete from Firestore to maintain privacy
-                        db.collection("messages").document(myUid)
+                        // Add to batch delete to save unit deletions
+                        val docRef = db.collection("messages").document(myUid)
                             .collection("pending").document(id)
-                            .delete()
+                        batch.delete(docRef)
+                        batchCount++
                     }
                     if (hasNewUnread) {
                         _unreadTrigger.value += 1
                     }
+                    if (batchCount > 0) {
+                        batch.commit()
+                    }
                 }
             }
+
+        // Listen to optimized pending_list array
+        db.collection("messages").document(myUid)
+            .addSnapshotListener { snapshot, error ->
+                if (error != null || snapshot == null || !snapshot.exists()) return@addSnapshotListener
+                
+                val pendingList = snapshot.get("pending_list") as? List<Map<String, Any>> ?: emptyList()
+                if (pendingList.isEmpty()) return@addSnapshotListener
+                
+                viewModelScope.launch {
+                    var hasNewUnread = false
+                    
+                    for (msgMap in pendingList) {
+                        val senderId = msgMap["senderId"] as? String ?: continue
+                        val text = msgMap["text"] as? String ?: continue
+                        val timestamp = (msgMap["timestamp"] as? Number)?.toLong() ?: System.currentTimeMillis()
+                        val id = msgMap["id"] as? String ?: continue
+
+                        val isAlreadyProcessed = !processedMessageIds.add(id)
+
+                        if (!isAlreadyProcessed) {
+                            var user = withContext(Dispatchers.IO) { chatDao.getUser(senderId) }
+                            if (user == null) {
+                                try {
+                                    val userDoc = db.collection("users").document(senderId).get().await()
+                                    val displayName = userDoc.getString("displayName") ?: ""
+                                    val studentName = userDoc.getString("studentName") ?: ""
+                                    val display = if (studentName.isNotEmpty() && displayName.isNotEmpty()) {
+                                        "$studentName ($displayName)"
+                                    } else if (studentName.isNotEmpty()) {
+                                        studentName
+                                    } else if (displayName.isNotEmpty()) {
+                                        displayName
+                                    } else {
+                                        "Compañero"
+                                    }
+                                    user = ChatUser(senderId, display)
+                                    withContext(Dispatchers.IO) { chatDao.insertUser(user) }
+                                } catch (e: Exception) {
+                                    user = ChatUser(senderId, "Compañero")
+                                    withContext(Dispatchers.IO) { chatDao.insertUser(user) }
+                                }
+                            }
+
+                            val chatMessage = ChatMessage(
+                                id = id,
+                                senderId = senderId,
+                                receiverId = myUid,
+                                text = text,
+                                timestamp = timestamp,
+                                isSentByMe = false
+                            )
+                            
+                            withContext(Dispatchers.IO) { chatDao.insertMessage(chatMessage) }
+                            
+                            if (senderId != myUid) {
+                                val sharedPrefs = getApplication<Application>().getSharedPreferences("chat_unread_prefs", android.content.Context.MODE_PRIVATE)
+                                sharedPrefs.edit().putBoolean("unread_$senderId", true).apply()
+                                hasNewUnread = true
+                                if (senderId != activeChatUserId) {
+                                    showNotification(senderId, user?.displayName ?: "Compañero", text)
+                                }
+                            }
+                        }
+                    }
+                    if (hasNewUnread) {
+                        _unreadTrigger.value += 1
+                    }
+                    
+                    // Optimized clearance: Uses arrayRemove instead of unit deletions!
+                    if (pendingList.isNotEmpty()) {
+                        db.collection("messages").document(myUid)
+                            .update("pending_list", com.google.firebase.firestore.FieldValue.arrayRemove(*pendingList.toTypedArray()))
+                    }
+                }
+            }
+    }
+
+    private fun createNotificationChannel() {
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+            val name = "Mensajes de Chat"
+            val descriptionText = "Notificaciones de nuevos mensajes recibidos"
+            val importance = android.app.NotificationManager.IMPORTANCE_DEFAULT
+            val channel = android.app.NotificationChannel("chat_messages_channel", name, importance).apply {
+                description = descriptionText
+            }
+            val notificationManager: android.app.NotificationManager =
+                getApplication<Application>().getSystemService(android.content.Context.NOTIFICATION_SERVICE) as android.app.NotificationManager
+            notificationManager.createNotificationChannel(channel)
+        }
+    }
+
+    private fun showNotification(senderId: String, senderName: String, messageText: String) {
+        val context = getApplication<Application>()
+        
+        // Check notification permission for Android 13+
+        if (android.os.Build.VERSION.SDK_INT >= 33) {
+            val hasPermission = androidx.core.content.ContextCompat.checkSelfPermission(
+                context,
+                "android.permission.POST_NOTIFICATIONS"
+            ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+            if (!hasPermission) return
+        }
+
+        // Use a generic intent to open the app or MainActivity
+        val intent = android.content.Intent(context, com.example.MainActivity::class.java).apply {
+            flags = android.content.Intent.FLAG_ACTIVITY_NEW_TASK or android.content.Intent.FLAG_ACTIVITY_CLEAR_TASK
+        }
+        val pendingIntent = android.app.PendingIntent.getActivity(
+            context,
+            0,
+            intent,
+            android.app.PendingIntent.FLAG_UPDATE_CURRENT or android.app.PendingIntent.FLAG_IMMUTABLE
+        )
+
+        // Parse special sticker markers to show a nice text like "Te envió un sticker"
+        val displayBody = when {
+            messageText.startsWith("[STICKER]:") || messageText.startsWith("[STICKER_GIF]:") -> "Te envió un sticker"
+            else -> messageText
+        }
+
+        val builder = androidx.core.app.NotificationCompat.Builder(context, "chat_messages_channel")
+            .setSmallIcon(android.R.drawable.stat_notify_chat)
+            .setContentTitle(senderName)
+            .setContentText(displayBody)
+            .setPriority(androidx.core.app.NotificationCompat.PRIORITY_DEFAULT)
+            .setContentIntent(pendingIntent)
+            .setAutoCancel(true)
+
+        val notificationManager = context.getSystemService(android.content.Context.NOTIFICATION_SERVICE) as android.app.NotificationManager
+        val notificationId = senderId.hashCode()
+        notificationManager.notify(notificationId, builder.build())
     }
 }

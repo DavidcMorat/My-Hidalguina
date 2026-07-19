@@ -253,6 +253,13 @@ fun ChatDetailScreen(
     var text by remember { mutableStateOf("") }
     var showStickers by remember { mutableStateOf(false) }
 
+    DisposableEffect(user.uid) {
+        chatViewModel.activeChatUserId = user.uid
+        onDispose {
+            chatViewModel.activeChatUserId = null
+        }
+    }
+
     LaunchedEffect(user.uid) {
         chatViewModel.markChatAsRead(user.uid)
     }

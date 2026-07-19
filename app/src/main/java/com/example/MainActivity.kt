@@ -17,6 +17,15 @@ import com.example.ui.theme.MyApplicationTheme
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        
+        // Request notification permission for Android 13+
+        if (android.os.Build.VERSION.SDK_INT >= 33) {
+            val permission = "android.permission.POST_NOTIFICATIONS"
+            if (androidx.core.content.ContextCompat.checkSelfPermission(this, permission) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                androidx.core.app.ActivityCompat.requestPermissions(this, arrayOf(permission), 101)
+            }
+        }
+
         enableEdgeToEdge()
         setContent {
             MyApplicationTheme {

@@ -177,12 +177,12 @@ object StickerManager {
         
         // Final ultimate local fallback so the tab is NEVER empty
         val fallbackList = listOf(
-            Sticker("fallback_1", "giphy", "https://i.giphy.com/8g7S0O63678031v8Uj.gif", isGif = true),
-            Sticker("fallback_2", "giphy", "https://i.giphy.com/3oriffitOfuTj9X0Nq.gif", isGif = true),
-            Sticker("fallback_3", "giphy", "https://i.giphy.com/P8EonNrrfK83O6663E.gif", isGif = true),
-            Sticker("fallback_4", "giphy", "https://i.giphy.com/vNf16SIsA98S5uA6uL.gif", isGif = true),
-            Sticker("fallback_5", "giphy", "https://i.giphy.com/M6LgO0U.gif", isGif = true),
-            Sticker("fallback_6", "giphy", "https://i.giphy.com/o7R0N2F.gif", isGif = true)
+            Sticker("fallback_1", "giphy", "https://media4.giphy.com/media/v1.Y2lkPTEwZjlkNzBlcXN2dXVvbjMydXNwOXZhbGJ6eHI3cHpxdmxwdGh3M3BzdzIzd2ZtMCZlcD12MV9zdGlja2Vyc190cmVuZGluZyZjdD1z/PhUMedi9jcdlutzcUT/200.gif", isGif = true),
+            Sticker("fallback_2", "giphy", "https://media3.giphy.com/media/v1.Y2lkPTEwZjlkNzBlcXN2dXVvbjMydXNwOXZhbGJ6eHI3cHpxdmxwdGh3M3BzdzIzd2ZtMCZlcD12MV9zdGlja2Vyc190cmVuZGluZyZjdD10cw/ow4ZPyqUkh1bLqdzoQ/200.gif", isGif = true),
+            Sticker("fallback_3", "giphy", "https://media2.giphy.com/media/v1.Y2lkPTEwZjlkNzBlcXN2dXVvbjMydXNwOXZhbGJ6eHI3cHpxdmxwdGh3M3BzdzIzd2ZtMCZlcD12MV9zdGlja2Vyc190cmVuZGluZyZjdD1z/FZAmJToAKSsQOoRMxy/200.gif", isGif = true),
+            Sticker("fallback_4", "giphy", "https://media1.giphy.com/media/v1.Y2lkPTEwZjlkNzBlcXN2dXVvbjMydXNwOXZhbGJ6eHI3cHpxdmxwdGh3M3BzdzIzd2ZtMCZlcD12MV9zdGlja2Vyc190cmVuZGluZyZjdD1z/yk4ZzyN2jhwIbrQ28e/200.gif", isGif = true),
+            Sticker("fallback_5", "giphy", "https://media1.giphy.com/media/v1.Y2lkPTEwZjlkNzBlcXN2dXVvbjMydXNwOXZhbGJ6eHI3cHpxdmxwdGh3M3BzdzIzd2ZtMCZlcD12MV9zdGlja2Vyc190cmVuZGluZyZjdD10cw/ee0ofNXR1jKxBsK12y/200.gif", isGif = true),
+            Sticker("fallback_6", "giphy", "https://media1.giphy.com/media/v1.Y2lkPTEwZjlkNzBlcXN2dXVvbjMydXNwOXZhbGJ6eHI3cHpxdmxwdGh3M3BzdzIzd2ZtMCZlcD12MV9zdGlja2Vyc190cmVuZGluZyZjdD1z/oNmK3GtMko7oPbd20C/200.gif", isGif = true)
         )
         fallbackList
     }
@@ -220,12 +220,12 @@ object StickerManager {
         
         // Final fallback so the search is NEVER empty
         val fallbackList = listOf(
-            Sticker("fallback_1", "giphy", "https://i.giphy.com/8g7S0O63678031v8Uj.gif", isGif = true),
-            Sticker("fallback_2", "giphy", "https://i.giphy.com/3oriffitOfuTj9X0Nq.gif", isGif = true),
-            Sticker("fallback_3", "giphy", "https://i.giphy.com/P8EonNrrfK83O6663E.gif", isGif = true),
-            Sticker("fallback_4", "giphy", "https://i.giphy.com/vNf16SIsA98S5uA6uL.gif", isGif = true),
-            Sticker("fallback_5", "giphy", "https://i.giphy.com/M6LgO0U.gif", isGif = true),
-            Sticker("fallback_6", "giphy", "https://i.giphy.com/o7R0N2F.gif", isGif = true)
+            Sticker("fallback_1", "giphy", "https://media4.giphy.com/media/v1.Y2lkPTEwZjlkNzBlcXN2dXVvbjMydXNwOXZhbGJ6eHI3cHpxdmxwdGh3M3BzdzIzd2ZtMCZlcD12MV9zdGlja2Vyc190cmVuZGluZyZjdD1z/PhUMedi9jcdlutzcUT/200.gif", isGif = true),
+            Sticker("fallback_2", "giphy", "https://media3.giphy.com/media/v1.Y2lkPTEwZjlkNzBlcXN2dXVvbjMydXNwOXZhbGJ6eHI3cHpxdmxwdGh3M3BzdzIzd2ZtMCZlcD12MV9zdGlja2Vyc190cmVuZGluZyZjdD10cw/ow4ZPyqUkh1bLqdzoQ/200.gif", isGif = true),
+            Sticker("fallback_3", "giphy", "https://media2.giphy.com/media/v1.Y2lkPTEwZjlkNzBlcXN2dXVvbjMydXNwOXZhbGJ6eHI3cHpxdmxwdGh3M3BzdzIzd2ZtMCZlcD12MV9zdGlja2Vyc190cmVuZGluZyZjdD1z/FZAmJToAKSsQOoRMxy/200.gif", isGif = true),
+            Sticker("fallback_4", "giphy", "https://media1.giphy.com/media/v1.Y2lkPTEwZjlkNzBlcXN2dXVvbjMydXNwOXZhbGJ6eHI3cHpxdmxwdGh3M3BzdzIzd2ZtMCZlcD12MV9zdGlja2Vyc190cmVuZGluZyZjdD1z/yk4ZzyN2jhwIbrQ28e/200.gif", isGif = true),
+            Sticker("fallback_5", "giphy", "https://media1.giphy.com/media/v1.Y2lkPTEwZjlkNzBlcXN2dXVvbjMydXNwOXZhbGJ6eHI3cHpxdmxwdGh3M3BzdzIzd2ZtMCZlcD12MV9zdGlja2Vyc190cmVuZGluZyZjdD10cw/ee0ofNXR1jKxBsK12y/200.gif", isGif = true),
+            Sticker("fallback_6", "giphy", "https://media1.giphy.com/media/v1.Y2lkPTEwZjlkNzBlcXN2dXVvbjMydXNwOXZhbGJ6eHI3cHpxdmxwdGh3M3BzdzIzd2ZtMCZlcD12MV9zdGlja2Vyc190cmVuZGluZyZjdD1z/oNmK3GtMko7oPbd20C/200.gif", isGif = true)
         )
         fallbackList
     }
