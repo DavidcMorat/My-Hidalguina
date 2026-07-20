@@ -69,8 +69,8 @@ fun TeacherDashboard(
             val sharedPrefs = context.getSharedPreferences("user_profile_prefs", Context.MODE_PRIVATE)
             teacherName = sharedPrefs.getString("studentName_backup_$uid", "") ?: ""
             area = sharedPrefs.getString("area_backup_$uid", "") ?: ""
-            gradeStr = sharedPrefs.getString("grade_backup_$uid", "3ro,4to") ?: "3ro,4to"
-            sectionStr = sharedPrefs.getString("section_backup_$uid", "A,B") ?: "A,B"
+            gradeStr = sharedPrefs.getString("grade_backup_$uid", "") ?: ""
+            sectionStr = sharedPrefs.getString("section_backup_$uid", "") ?: ""
             username = sharedPrefs.getString("displayName_backup_$uid", currentUser.displayName ?: "") ?: ""
 
             // Fetch from Firestore to keep updated
@@ -109,16 +109,12 @@ fun TeacherDashboard(
                 list.add("$g - $s")
             }
         }
-        if (list.isEmpty()) {
-            listOf("3ro - A", "4to - B", "5to - A")
-        } else {
-            list
-        }
+        list
     }
 
     // Auto-select first classroom
     LaunchedEffect(classrooms) {
-        if (selectedSalon.isEmpty() && classrooms.isNotEmpty()) {
+        if (!classrooms.contains(selectedSalon) && classrooms.isNotEmpty()) {
             selectedSalon = classrooms.first()
         }
     }
@@ -126,8 +122,8 @@ fun TeacherDashboard(
     // Parse active grade and section
     val activeGradeAndSection = remember(selectedSalon) {
         val parts = selectedSalon.split("-")
-        val g = parts.getOrNull(0)?.trim() ?: "3ro"
-        val s = parts.getOrNull(1)?.trim() ?: "A"
+        val g = parts.getOrNull(0)?.trim() ?: ""
+        val s = parts.getOrNull(1)?.trim() ?: ""
         Pair(g, s)
     }
 
@@ -139,7 +135,6 @@ fun TeacherDashboard(
             db.collection("announcements")
                 .whereEqualTo("grade", g)
                 .whereEqualTo("section", s)
-                .orderBy("timestamp", Query.Direction.DESCENDING)
                 .addSnapshotListener { snapshot, error ->
                     isLoadingAnnouncements = false
                     if (snapshot != null) {
@@ -157,7 +152,7 @@ fun TeacherDashboard(
                                 grade = doc.getString("grade") ?: "",
                                 section = doc.getString("section") ?: ""
                             )
-                        }
+                        }.sortedByDescending { it.timestamp }
                     }
                 }
         }
@@ -170,35 +165,33 @@ fun TeacherDashboard(
             val (g, s) = activeGradeAndSection
             db.collection("users")
                 .whereEqualTo("role", "student")
-                .whereEqualTo("grade", g)
-                .whereEqualTo("section", s)
                 .addSnapshotListener { snapshot, error ->
                     isLoadingStudents = false
-                    if (snapshot != null && !snapshot.isEmpty) {
+                    if (snapshot != null) {
                         studentsList = snapshot.documents.mapNotNull { doc ->
-                            val uid = doc.getString("uid") ?: doc.id
-                            val sName = doc.getString("studentName") ?: doc.getString("displayName") ?: "Estudiante"
-                            val uname = doc.getString("displayName") ?: ""
-                            val points = doc.getLong("points") ?: 100L
-                            StudentInfo(
-                                uid = uid,
-                                studentName = sName,
-                                username = uname,
-                                points = points.toInt(),
-                                grade = g,
-                                section = s
-                            )
+                            val docGrade = doc.getString("grade") ?: ""
+                            val docSection = doc.getString("section") ?: ""
+                            
+                            // Local filter to avoid missing composite index errors
+                            if (docGrade == g && docSection == s) {
+                                val uid = doc.getString("uid") ?: doc.id
+                                val sName = doc.getString("studentName") ?: doc.getString("displayName") ?: "Estudiante"
+                                val uname = doc.getString("displayName") ?: ""
+                                val points = doc.getLong("points") ?: 100L
+                                StudentInfo(
+                                    uid = uid,
+                                    studentName = sName,
+                                    username = uname,
+                                    points = points.toInt(),
+                                    grade = g,
+                                    section = s
+                                )
+                            } else {
+                                null
+                            }
                         }
                     } else {
-                        // Dynamic high-fidelity mock list fallback based on chosen salon
-                        studentsList = listOf(
-                            StudentInfo("mock_1", "Marcos Quispe", "marcos_q", 320, g, s),
-                            StudentInfo("mock_2", "Sofía Mendoza", "sofia_m", 450, g, s),
-                            StudentInfo("mock_3", "Mateo Flores", "mateo_f", 180, g, s),
-                            StudentInfo("mock_4", "Camila Huamán", "camila_h", 250, g, s),
-                            StudentInfo("mock_5", "Daniel Condori", "daniel_c", 510, g, s),
-                            StudentInfo("mock_6", "Lucía Benítez", "lucia_b", 400, g, s)
-                        )
+                        studentsList = emptyList()
                     }
                 }
         }
@@ -493,7 +486,7 @@ fun TeacherDashboard(
                         }
                     }
                 }
-            } else {
+            } else if (selectedTab == "Alumnos") {
                 // LISTA DE ALUMNOS PANEL (Classroom view)
                 Column(
                     modifier = Modifier
@@ -586,54 +579,152 @@ fun TeacherDashboard(
                                                 }
                                             }
                                         }
-
-                                        // Recompensar al estudiante (XP rewards, interactivo!)
-                                        Button(
-                                            onClick = {
-                                                val targetRef = if (student.uid.startsWith("mock_")) {
-                                                    // Allow local feedback for mock data
-                                                    null
-                                                } else {
-                                                    db.collection("users").document(student.uid)
-                                                }
-
-                                                if (targetRef != null) {
-                                                    targetRef.get().addOnSuccessListener { doc ->
-                                                        val currentPoints = doc.getLong("points") ?: 100L
-                                                        targetRef.update("points", currentPoints + 15)
-                                                    }
-                                                }
-                                                // Trigger simple animation / visual feedback
-                                                awardSuccess = true
-                                            },
-                                            colors = ButtonDefaults.buttonColors(
-                                                containerColor = if (awardSuccess) Color(0xFF4CAF50) else RedPrimary
-                                            ),
-                                            shape = RoundedCornerShape(10.dp),
-                                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp),
-                                            modifier = Modifier.height(32.dp)
-                                        ) {
-                                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                                Icon(
-                                                    imageVector = if (awardSuccess) Icons.Filled.Check else Icons.Filled.Star,
-                                                    contentDescription = null,
-                                                    tint = Color.White,
-                                                    modifier = Modifier.size(14.dp)
-                                                )
-                                                Spacer(modifier = Modifier.width(4.dp))
-                                                Text(
-                                                    text = if (awardSuccess) "+15!" else "+15 XP",
-                                                    fontSize = 11.sp,
-                                                    fontWeight = FontWeight.Bold,
-                                                    color = Color.White
-                                                )
-                                            }
-                                        }
                                     }
                                 }
                             }
                         }
                     }
+                }
+            } else if (selectedTab == "Cursos") {
+                // CURSOS PANEL (Add topics and tasks)
+                var newContentTitle by remember { mutableStateOf("") }
+                var newContentDesc by remember { mutableStateOf("") }
+                var isSubmittingContent by remember { mutableStateOf(false) }
+                
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(16.dp)
+                ) {
+                    Text(
+                        text = "Agregar Tareas y Temas",
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = BlackTertiary
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(containerColor = Color.White),
+                        shape = RoundedCornerShape(16.dp),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                    ) {
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            Text(
+                                text = "Nueva actividad para $selectedSalon",
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = RedPrimary
+                            )
+                            Spacer(modifier = Modifier.height(10.dp))
+                            
+                            OutlinedTextField(
+                                value = newContentTitle,
+                                onValueChange = { newContentTitle = it },
+                                placeholder = { Text("Título de la tarea o tema...", fontSize = 13.sp, color = TextGray) },
+                                modifier = Modifier.fillMaxWidth(),
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    unfocusedBorderColor = DividerGray,
+                                    focusedBorderColor = RedPrimary,
+                                    unfocusedContainerColor = BackgroundGray,
+                                    focusedContainerColor = BackgroundGray,
+                                    focusedTextColor = BlackTertiary,
+                                    unfocusedTextColor = BlackTertiary
+                                ),
+                                shape = RoundedCornerShape(12.dp),
+                                singleLine = true
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            
+                            OutlinedTextField(
+                                value = newContentDesc,
+                                onValueChange = { newContentDesc = it },
+                                placeholder = { Text("Descripción o instrucciones detalladas...", fontSize = 13.sp, color = TextGray) },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(90.dp),
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    unfocusedBorderColor = DividerGray,
+                                    focusedBorderColor = RedPrimary,
+                                    unfocusedContainerColor = BackgroundGray,
+                                    focusedContainerColor = BackgroundGray,
+                                    focusedTextColor = BlackTertiary,
+                                    unfocusedTextColor = BlackTertiary
+                                ),
+                                shape = RoundedCornerShape(12.dp)
+                            )
+                            Spacer(modifier = Modifier.height(12.dp))
+                            
+                            if (newContentTitle.isNotBlank() && !isSubmittingContent) {
+                                RevealButton(
+                                    onClick = {
+                                        isSubmittingContent = true
+                                        val (g, s) = activeGradeAndSection
+                                        val newContent = hashMapOf(
+                                            "title" to newContentTitle,
+                                            "description" to newContentDesc,
+                                            "teacherName" to teacherName,
+                                            "area" to area,
+                                            "grade" to g,
+                                            "section" to s,
+                                            "timestamp" to System.currentTimeMillis()
+                                        )
+                                        db.collection("class_tasks")
+                                            .add(newContent)
+                                            .addOnSuccessListener {
+                                                newContentTitle = ""
+                                                newContentDesc = ""
+                                                isSubmittingContent = false
+                                            }
+                                            .addOnFailureListener {
+                                                isSubmittingContent = false
+                                            }
+                                    },
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(44.dp),
+                                    backgroundColor = RedPrimary,
+                                    revealColor = Color(0xFFFF5252),
+                                    contentColor = Color.White
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(Icons.Filled.Add, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Text("Publicar Actividad", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = Color.White)
+                                    }
+                                }
+                            } else {
+                                Button(
+                                    onClick = {},
+                                    enabled = false,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(44.dp),
+                                    colors = ButtonDefaults.buttonColors(
+                                        disabledContainerColor = Color.LightGray,
+                                        disabledContentColor = TextGray
+                                    ),
+                                    shape = RoundedCornerShape(12.dp)
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(Icons.Filled.Add, contentDescription = null, tint = TextGray, modifier = Modifier.size(18.dp))
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Text("Publicar Actividad", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = TextGray)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text(
+                        text = "Esta actividad aparecerá en la sección 'Tareas' de los estudiantes de $selectedSalon.",
+                        fontSize = 12.sp,
+                        color = TextGray,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.fillMaxWidth()
+                    )
                 }
             }
         }
@@ -677,6 +768,24 @@ fun TeacherBottomNavigation(
                 )
             },
             label = { Text("Mi Salón", fontWeight = FontWeight.Bold) },
+            colors = NavigationBarItemDefaults.colors(
+                selectedIconColor = Color.White,
+                selectedTextColor = RedPrimary,
+                unselectedIconColor = TextGray,
+                unselectedTextColor = TextGray,
+                indicatorColor = RedPrimary
+            )
+        )
+        NavigationBarItem(
+            selected = selectedTab == "Cursos",
+            onClick = { onTabSelected("Cursos") },
+            icon = {
+                Icon(
+                    imageVector = Icons.Filled.MenuBook,
+                    contentDescription = "Cursos"
+                )
+            },
+            label = { Text("Cursos", fontWeight = FontWeight.Bold) },
             colors = NavigationBarItemDefaults.colors(
                 selectedIconColor = Color.White,
                 selectedTextColor = RedPrimary,

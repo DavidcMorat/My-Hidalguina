@@ -226,23 +226,43 @@ fun RegisterScreen(
                 Spacer(modifier = Modifier.height(16.dp))
             } else {
                 // CAMPOS DE DOCENTE: AREA, GRADOS (MULTIPLE) Y SECCIONES (MULTIPLE)
-                OutlinedTextField(
-                    value = area,
-                    onValueChange = { area = it },
+                // Selector de Cursos (Área) Múltiples/Simple (1 click)
+                Card(
                     modifier = Modifier.fillMaxWidth(),
-                    placeholder = { Text("Área de enseñanza (ej. Matemática, Comunicación)", color = TextGray) },
-                    leadingIcon = { Icon(Icons.Filled.Person, contentDescription = null, tint = TextGray) },
+                    colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.9f)),
                     shape = RoundedCornerShape(12.dp),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        unfocusedBorderColor = DividerGray,
-                        focusedBorderColor = RedPrimary,
-                        unfocusedContainerColor = Color.White,
-                        focusedContainerColor = Color.White,
-                        focusedTextColor = BlackTertiary,
-                        unfocusedTextColor = BlackTertiary
-                    ),
-                    singleLine = true
-                )
+                    border = BorderStroke(1.dp, DividerGray)
+                ) {
+                    Column(modifier = Modifier.padding(12.dp)) {
+                        Text("Área de enseñanza (seleccione 1):", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = BlackTertiary)
+                        Spacer(modifier = Modifier.height(8.dp))
+                        
+                        val commonAreas = listOf("Matemática", "Comunicación", "Ciencias", "Historia", "Inglés", "Arte")
+                        
+                        @OptIn(ExperimentalLayoutApi::class)
+                        FlowRow(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            verticalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            commonAreas.forEach { cArea ->
+                                val isSelected = area == cArea
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(if (isSelected) RedPrimary.copy(alpha = 0.15f) else Color.White)
+                                        .border(1.dp, if (isSelected) RedPrimary else DividerGray, RoundedCornerShape(8.dp))
+                                        .clickable {
+                                            area = cArea
+                                        }
+                                        .padding(horizontal = 12.dp, vertical = 8.dp)
+                                ) {
+                                    Text(cArea, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = if (isSelected) RedPrimary else BlackTertiary)
+                                }
+                            }
+                        }
+                    }
+                }
                 Spacer(modifier = Modifier.height(16.dp))
 
                 // Selector de Grados Múltiples (1ro a 5to)
@@ -291,15 +311,16 @@ fun RegisterScreen(
                     Column(modifier = Modifier.padding(12.dp)) {
                         Text("Secciones a su cargo (seleccione 1 o más):", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = BlackTertiary)
                         Spacer(modifier = Modifier.height(8.dp))
-                        Row(
+                        @OptIn(ExperimentalLayoutApi::class)
+                        FlowRow(
                             modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            verticalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
-                            listOf("A", "B", "C", "D").forEach { s ->
+                            listOf("A", "B", "C", "D", "E", "F", "G", "H").forEach { s ->
                                 val isSelected = selectedSections.contains(s)
                                 Box(
                                     modifier = Modifier
-                                        .weight(1f)
                                         .height(36.dp)
                                         .clip(RoundedCornerShape(8.dp))
                                         .background(if (isSelected) RedPrimary.copy(alpha = 0.15f) else Color.White)
@@ -307,6 +328,7 @@ fun RegisterScreen(
                                         .clickable {
                                             if (isSelected) selectedSections.remove(s) else selectedSections.add(s)
                                         }
+                                        .padding(horizontal = 24.dp)
                                         .wrapContentSize(Alignment.Center)
                                 ) {
                                     Text(s, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = if (isSelected) RedPrimary else BlackTertiary)

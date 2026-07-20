@@ -222,19 +222,23 @@ fun StudentDashboard(
             try {
                 com.google.firebase.firestore.FirebaseFirestore.getInstance()
                     .collection("announcements")
-                    .whereEqualTo("grade", studentGrade)
-                    .whereEqualTo("section", studentSection)
-                    .orderBy("timestamp", com.google.firebase.firestore.Query.Direction.DESCENDING)
                     .addSnapshotListener { snapshot, error ->
                         isLoadingAnnouncements = false
                         if (snapshot != null) {
                             teacherAnnouncements = snapshot.documents.mapNotNull { doc ->
-                                val text = doc.getString("text") ?: ""
-                                val sender = doc.getString("senderName") ?: ""
-                                val subject = doc.getString("area") ?: ""
-                                val ts = doc.getLong("timestamp") ?: 0L
-                                StudentAnnouncement(doc.id, text, sender, subject, ts)
-                            }
+                                val docGrade = doc.getString("grade") ?: ""
+                                val docSection = doc.getString("section") ?: ""
+                                
+                                if (docGrade == studentGrade && docSection == studentSection) {
+                                    val text = doc.getString("text") ?: ""
+                                    val sender = doc.getString("senderName") ?: ""
+                                    val subject = doc.getString("area") ?: ""
+                                    val ts = doc.getLong("timestamp") ?: 0L
+                                    StudentAnnouncement(doc.id, text, sender, subject, ts)
+                                } else {
+                                    null
+                                }
+                            }.sortedByDescending { it.timestamp }
                         }
                     }
             } catch (e: Exception) {
@@ -246,7 +250,65 @@ fun StudentDashboard(
     // Persistent-like offline states using Compose memories
     var completedTasks by remember { mutableStateOf(setOf<String>()) }
     var completedTopics by remember { mutableStateOf(setOf<String>()) }
-    var studyReminders by remember { mutableStateOf(listOf("Repasar Matemática", "Practicar vocabulario de Inglés")) }
+    var studyReminders by remember { mutableStateOf(emptyList<String>()) }
+
+    var dynamicCourses by remember { mutableStateOf<List<Course>>(emptyList()) }
+    var isLoadingCourses by remember { mutableStateOf(false) }
+
+    LaunchedEffect(uid, studentGrade, studentSection) {
+        if (uid != null) {
+            isLoadingCourses = true
+            try {
+                com.google.firebase.firestore.FirebaseFirestore.getInstance()
+                    .collection("class_tasks")
+                    .addSnapshotListener { snapshot, error ->
+                        isLoadingCourses = false
+                        if (snapshot != null) {
+                            val filteredDocs = snapshot.documents.filter { doc ->
+                                val docGrade = doc.getString("grade") ?: ""
+                                val docSection = doc.getString("section") ?: ""
+                                docGrade == studentGrade && docSection == studentSection
+                            }
+                            val groupedTasks = filteredDocs.groupBy { doc -> doc.getString("area") ?: "Otro" }
+                            val newCourses = groupedTasks.map { entry ->
+                                val area = entry.key
+                                val docs = entry.value
+                                val teacher = docs.firstOrNull()?.getString("teacherName") ?: "Docente asignado"
+                                val tasksList = docs.map { doc -> doc.getString("title") ?: "Tarea" }
+                                val icon = when (area.lowercase()) {
+                                    "matemática" -> Icons.Filled.Calculate
+                                    "comunicación" -> Icons.Filled.MenuBook
+                                    "ciencias", "ciencia y tecnología" -> Icons.Filled.Science
+                                    "historia", "ciencias sociales" -> Icons.Filled.Public
+                                    "inglés" -> Icons.Filled.Translate
+                                    "arte", "arte y cultura" -> Icons.Filled.Palette
+                                    "educación física" -> Icons.Filled.FitnessCenter
+                                    else -> Icons.Filled.School
+                                }
+                                
+                                val totalTasks = tasksList.size
+                                val completedCount = tasksList.count { completedTasks.contains(it) }
+                                val progress = if (totalTasks > 0) completedCount.toFloat() / totalTasks.toFloat() else 0f
+                                
+                                Course(
+                                    id = area,
+                                    name = area,
+                                    teacher = teacher,
+                                    progress = progress,
+                                    color = RedPrimary,
+                                    icon = icon,
+                                    topics = emptyList(), // Topics not separated explicitly in UI yet
+                                    tasks = tasksList
+                                )
+                            }
+                            dynamicCourses = newCourses
+                        }
+                    }
+            } catch (e: Exception) {
+                isLoadingCourses = false
+            }
+        }
+    }
 
     // Peruvian secondary school curriculum (cursos en blanco por defecto)
     val standardCoursesList = listOf(
@@ -436,7 +498,24 @@ fun StudentDashboard(
             )
         }
 
-        if (selectedTab == "Mensajes") {
+        if (selectedTab == "Tutor IA") {
+            TutorIaScreen(
+                modifier = Modifier.padding(innerPadding),
+                onGeneratePlan = { course, topic ->
+                    coroutineScope.launch {
+                        isGeneratingPlan = true
+                        val steps = generateAiStudyPlan(course, topic)
+                        saveAiPlan(course, topic, steps)
+                        completedAiTasks = emptySet()
+                        sharedPrefs.edit().putStringSet("completed_ai_tasks", emptySet()).apply()
+                        isGeneratingPlan = false
+                        // Automatically navigate to the plan screen
+                        selectedTab = "Herramientas"
+                        activeToolSubScreen = "Plan de estudio"
+                    }
+                }
+            )
+        } else if (selectedTab == "Mensajes") {
             if (selectedChatUser != null) {
                 com.example.chat.ChatDetailScreen(
                     user = selectedChatUser!!,
@@ -485,7 +564,7 @@ fun StudentDashboard(
             } else {
                 CursosTab(
                     modifier = Modifier.padding(innerPadding),
-                    courses = standardCoursesList,
+                    courses = dynamicCourses,
                     completedTopics = completedTopics,
                     completedTasks = completedTasks,
                     onCourseClick = { selectedCourse = it }
@@ -495,12 +574,12 @@ fun StudentDashboard(
             // "Inicio" / MAIN DASHBOARD TAB
             if (activeToolSubScreen == "Aprendizaje") {
                 AprendizajeScreen(
-                    courses = standardCoursesList,
+                    courses = dynamicCourses,
                     onBack = { activeToolSubScreen = null }
                 )
             } else if (activeToolSubScreen == "Tareas") {
                 TareasScreen(
-                    courses = standardCoursesList,
+                    courses = dynamicCourses,
                     completedTasks = completedTasks,
                     onToggleTask = { taskKey ->
                         completedTasks = if (completedTasks.contains(taskKey)) {
@@ -516,7 +595,7 @@ fun StudentDashboard(
                 )
             } else if (activeToolSubScreen == "Plan de estudio") {
                 PlanEstudioScreen(
-                    courses = standardCoursesList,
+                    courses = dynamicCourses,
                     studyReminders = studyReminders,
                     onAddReminder = { rem -> studyReminders = studyReminders + rem },
                     onRemoveReminder = { rem -> studyReminders = studyReminders - rem },
@@ -554,7 +633,7 @@ fun StudentDashboard(
                 )
             } else if (activeToolSubScreen == "Mi progreso") {
                 MiProgresoScreen(
-                    courses = standardCoursesList,
+                    courses = dynamicCourses,
                     completedTopics = completedTopics,
                     completedTasks = completedTasks,
                     onBack = { activeToolSubScreen = null }
@@ -719,17 +798,17 @@ fun StudentDashboard(
                         
                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                             ToolCard(
-                                title = "Aprendizaje",
-                                subtitle = "Estudia los temas\nde tus cursos",
-                                icon = Icons.Filled.MenuBook,
+                                title = "Plan de Aprendizaje IA",
+                                subtitle = "Ruta generada por tu Tutor",
+                                icon = Icons.Filled.AutoAwesome,
                                 backgroundColor = RedPrimary,
                                 contentColor = Color.White,
                                 modifier = Modifier.weight(1f),
-                                onClick = { activeToolSubScreen = "Aprendizaje" }
+                                onClick = { activeToolSubScreen = "Plan de estudio" }
                             )
                             ToolCard(
                                 title = "Tareas",
-                                subtitle = "Revisa y entrega\ntus actividades",
+                                subtitle = "Actividades de tus docentes",
                                 icon = Icons.Filled.Assignment,
                                 backgroundColor = BlackTertiary,
                                 contentColor = Color.White,
@@ -739,15 +818,6 @@ fun StudentDashboard(
                         }
                         Spacer(modifier = Modifier.height(16.dp))
                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                            ToolCard(
-                                title = "Plan de estudio",
-                                subtitle = "Tu ruta personalizada\nde aprendizaje",
-                                icon = Icons.Filled.AdsClick,
-                                backgroundColor = YellowSecondary,
-                                contentColor = BlackTertiary,
-                                modifier = Modifier.weight(1f),
-                                onClick = { activeToolSubScreen = "Plan de estudio" }
-                            )
                             ToolCard(
                                 title = "Mi progreso",
                                 subtitle = "Revisa tu avance\npor materia",
@@ -761,8 +831,8 @@ fun StudentDashboard(
                                 title = "Logros",
                                 subtitle = "Desbloquea medallas\ny de recompensa",
                                 icon = Icons.Filled.EmojiEvents,
-                                backgroundColor = RedPrimary,
-                                contentColor = Color.White,
+                                backgroundColor = YellowSecondary,
+                                contentColor = BlackTertiary,
                                 modifier = Modifier.weight(1f),
                                 onClick = { activeToolSubScreen = "Logros" }
                             )
@@ -1037,11 +1107,12 @@ fun StudentBottomNavigation(selectedTab: String, onTabSelected: (String) -> Unit
             colors = tabColors
         )
         
-        // Central Item (Tutor IA) - disabled as requested ("menos el chat de ia")
+        // Central Item (Tutor IA)
         Box(
             modifier = Modifier
                 .weight(1f)
-                .padding(bottom = 8.dp),
+                .padding(bottom = 8.dp)
+                .clickable { onTabSelected("Tutor IA") },
             contentAlignment = Alignment.Center
         ) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -1049,13 +1120,13 @@ fun StudentBottomNavigation(selectedTab: String, onTabSelected: (String) -> Unit
                     modifier = Modifier
                         .size(48.dp)
                         .clip(CircleShape)
-                        .background(RedPrimary.copy(alpha = 0.4f)),
+                        .background(if (selectedTab == "Tutor IA") RedPrimary else RedPrimary.copy(alpha = 0.4f)),
                     contentAlignment = Alignment.Center
                 ) {
-                    Icon(Icons.Filled.ChatBubbleOutline, contentDescription = "Tutor IA", tint = Color.White, modifier = Modifier.size(24.dp))
+                    Icon(Icons.Filled.AutoAwesome, contentDescription = "Tutor IA", tint = Color.White, modifier = Modifier.size(24.dp))
                 }
                 Spacer(modifier = Modifier.height(4.dp))
-                Text("Tutor IA", fontSize = 10.sp, color = TextGray)
+                Text("Tutor IA", fontSize = 10.sp, color = if (selectedTab == "Tutor IA") RedPrimary else TextGray, fontWeight = if (selectedTab == "Tutor IA") FontWeight.Bold else FontWeight.Normal)
             }
         }
         
@@ -1479,7 +1550,9 @@ fun CourseDetailScreen(
                                             placeholder = { Text("Escribe tu respuesta o pega el enlace del documento...") },
                                             modifier = Modifier.fillMaxWidth(),
                                             colors = OutlinedTextFieldDefaults.colors(
-                                                focusedBorderColor = course.color
+                                                focusedBorderColor = course.color,
+                                                focusedTextColor = BlackTertiary,
+                                                unfocusedTextColor = BlackTertiary
                                             )
                                         )
                                         Spacer(modifier = Modifier.height(8.dp))
@@ -1775,15 +1848,11 @@ fun PlanEstudioScreen(
     onBack: () -> Unit
 ) {
     var newReminderText by remember { mutableStateOf("") }
-    var selectedCourseIndex by remember { mutableStateOf(0) }
-    var userTopicInput by remember { mutableStateOf("") }
-
-    val selectedCourseName = courses.getOrNull(selectedCourseIndex)?.name ?: "Matemática"
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Plan de Estudio", fontWeight = FontWeight.Bold) },
+                title = { Text("Plan de Aprendizaje IA", fontWeight = FontWeight.Bold) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.Filled.ArrowBack, contentDescription = "Volver")
@@ -1800,85 +1869,6 @@ fun PlanEstudioScreen(
                 .padding(16.dp)
                 .verticalScroll(rememberScrollState())
         ) {
-            // AI STUDY PLAN GENERATOR SECTION
-            Text("Planificador de Estudio con IA", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = BlackTertiary)
-            Spacer(modifier = Modifier.height(4.dp))
-            Text("Genera una ruta de aprendizaje personalizada con Inteligencia Artificial para el currículo peruano.", fontSize = 13.sp, color = TextGray)
-            Spacer(modifier = Modifier.height(12.dp))
-
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(containerColor = Color.White),
-                shape = RoundedCornerShape(16.dp),
-                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-            ) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Text("1. Selecciona la asignatura escolar", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = BlackTertiary)
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    // Horizontal course chips selector
-                    androidx.compose.foundation.lazy.LazyRow(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        items(courses.size) { idx ->
-                            val course = courses[idx]
-                            val isSelected = selectedCourseIndex == idx
-                            FilterChip(
-                                selected = isSelected,
-                                onClick = { selectedCourseIndex = idx },
-                                label = { Text(course.name, fontSize = 12.sp) },
-                                colors = FilterChipDefaults.filterChipColors(
-                                    selectedContainerColor = RedPrimary.copy(alpha = 0.15f),
-                                    selectedLabelColor = RedPrimary,
-                                    selectedLeadingIconColor = RedPrimary
-                                )
-                            )
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Text("2. Escribe el tema que deseas dominar", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = BlackTertiary)
-                    Spacer(modifier = Modifier.height(8.dp))
-
-                    OutlinedTextField(
-                        value = userTopicInput,
-                        onValueChange = { userTopicInput = it },
-                        placeholder = { Text("Ej. Fracciones, La célula, Climas de la región...") },
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(12.dp),
-                        colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = RedPrimary)
-                    )
-
-                    Spacer(modifier = Modifier.height(16.dp))
-
-                    Button(
-                        onClick = {
-                            if (userTopicInput.isNotBlank()) {
-                                onGeneratePlan(selectedCourseName, userTopicInput.trim())
-                            }
-                        },
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = ButtonDefaults.buttonColors(containerColor = RedPrimary),
-                        shape = RoundedCornerShape(12.dp),
-                        enabled = !isGenerating && userTopicInput.isNotBlank()
-                    ) {
-                        if (isGenerating) {
-                            CircularProgressIndicator(color = Color.White, modifier = Modifier.size(20.dp))
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text("Generando Plan...", color = Color.White)
-                        } else {
-                            Icon(Icons.Filled.AutoAwesome, contentDescription = null, modifier = Modifier.size(18.dp))
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text("Generar Plan con IA", color = Color.White)
-                        }
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(24.dp))
-
-            // ACTIVE AI STUDY PLAN DISPLAY
             if (aiPlanTasks.isNotEmpty()) {
                 Text("Tu Ruta de Aprendizaje Activa", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = BlackTertiary)
                 Spacer(modifier = Modifier.height(4.dp))
@@ -1963,43 +1953,27 @@ fun PlanEstudioScreen(
                     }
                 }
                 Spacer(modifier = Modifier.height(24.dp))
-            }
-
-            // WEEKLY SCHOOL SCHEDULE SECTION
-            Text("Horario Escolar Semanal", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = BlackTertiary)
-            Spacer(modifier = Modifier.height(12.dp))
-
-            val days = listOf("Lunes", "Martes", "Miércoles", "Jueves", "Viernes")
-            val schedule = listOf(
-                "08:00 AM - Matemática",
-                "09:30 AM - Comunicación",
-                "11:00 AM - RECESO ESCOLAR",
-                "11:30 AM - Ciencia y Tecnología",
-                "01:00 PM - Ciencias Sociales"
-            )
-
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(containerColor = Color.White),
-                shape = RoundedCornerShape(16.dp),
-                elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
-            ) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    days.forEachIndexed { idx, day ->
-                        Text(day, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = RedPrimary)
-                        Spacer(modifier = Modifier.height(4.dp))
+            } else {
+                Box(
+                    modifier = Modifier.fillMaxWidth().padding(32.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Icon(Icons.Filled.AutoAwesome, contentDescription = null, tint = TextGray, modifier = Modifier.size(48.dp))
+                        Spacer(modifier = Modifier.height(16.dp))
                         Text(
-                            text = if (idx % 2 == 0) schedule.joinToString("\n") else schedule.reversed().joinToString("\n"),
-                            fontSize = 12.sp,
-                            color = TextGray,
-                            lineHeight = 18.sp
+                            "Aún no tienes un plan de estudio activo.\n¡Abre el Chat con tu Tutor IA y pídele que te genere uno!", 
+                            color = TextGray, 
+                            textAlign = TextAlign.Center,
+                            fontSize = 14.sp
                         )
-                        if (idx < days.size - 1) {
-                            HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp), color = DividerGray)
-                        }
                     }
                 }
+                Spacer(modifier = Modifier.height(24.dp))
             }
+
+            // WEEKLY SCHOOL SCHEDULE SECTION REMOVED
+
 
             Spacer(modifier = Modifier.height(24.dp))
 
@@ -2014,7 +1988,11 @@ fun PlanEstudioScreen(
                     placeholder = { Text("Ej. Estudiar Matemática a las 5:00 PM...") },
                     modifier = Modifier.weight(1f),
                     shape = RoundedCornerShape(12.dp),
-                    colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = RedPrimary)
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = RedPrimary,
+                        focusedTextColor = BlackTertiary,
+                        unfocusedTextColor = BlackTertiary
+                    )
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Button(
