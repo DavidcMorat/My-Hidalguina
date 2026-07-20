@@ -44,8 +44,17 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun signUpWithEmail(email: String, pass: String, username: String, studentName: String, grade: String, section: String) {
-        if (email.isBlank() || pass.isBlank() || username.isBlank() || studentName.isBlank() || grade.isBlank() || section.isBlank()) {
+    fun signUpWithEmail(
+        email: String,
+        pass: String,
+        username: String,
+        realName: String,
+        role: String,
+        grade: String,
+        section: String,
+        area: String = ""
+    ) {
+        if (email.isBlank() || pass.isBlank() || username.isBlank() || realName.isBlank() || grade.isBlank() || section.isBlank() || (role == "teacher" && area.isBlank())) {
             _authState.value = AuthState.Error("Todos los campos son obligatorios")
             return
         }
@@ -63,10 +72,12 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
                     // Save locally in SharedPreferences as backup
                     val sharedPrefs = getApplication<Application>().getSharedPreferences("user_profile_prefs", Context.MODE_PRIVATE)
                     sharedPrefs.edit().apply {
-                        putString("studentName_backup_${user.uid}", studentName)
+                        putString("role_backup_${user.uid}", role)
+                        putString("studentName_backup_${user.uid}", realName)
                         putString("grade_backup_${user.uid}", grade)
                         putString("section_backup_${user.uid}", section)
                         putString("displayName_backup_${user.uid}", username)
+                        putString("area_backup_${user.uid}", area)
                         apply()
                     }
 
@@ -74,9 +85,11 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
                     val userData = hashMapOf(
                         "uid" to user.uid,
                         "displayName" to username,
-                        "studentName" to studentName,
+                        "role" to role,
+                        "studentName" to realName,
                         "grade" to grade,
                         "section" to section,
+                        "area" to area,
                         "email" to email
                     )
                     try {
@@ -93,8 +106,8 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun updateProfile(displayName: String, studentName: String, grade: String, section: String) {
-        if (displayName.isBlank() || studentName.isBlank() || grade.isBlank() || section.isBlank()) {
+    fun updateProfile(displayName: String, realName: String, grade: String, section: String, role: String = "student", area: String = "") {
+        if (displayName.isBlank() || realName.isBlank() || grade.isBlank() || section.isBlank() || (role == "teacher" && area.isBlank())) {
             _authState.value = AuthState.Error("Todos los campos son obligatorios")
             return
         }
@@ -111,19 +124,23 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
                     // Save locally in SharedPreferences as backup
                     val sharedPrefs = getApplication<Application>().getSharedPreferences("user_profile_prefs", Context.MODE_PRIVATE)
                     sharedPrefs.edit().apply {
-                        putString("studentName_backup_${user.uid}", studentName)
+                        putString("role_backup_${user.uid}", role)
+                        putString("studentName_backup_${user.uid}", realName)
                         putString("grade_backup_${user.uid}", grade)
                         putString("section_backup_${user.uid}", section)
                         putString("displayName_backup_${user.uid}", displayName)
+                        putString("area_backup_${user.uid}", area)
                         apply()
                     }
 
                     // Update in Firestore
                     val userData = hashMapOf(
                         "displayName" to displayName,
-                        "studentName" to studentName,
+                        "role" to role,
+                        "studentName" to realName,
                         "grade" to grade,
-                        "section" to section
+                        "section" to section,
+                        "area" to area
                     )
                     db.collection("users").document(user.uid).set(userData, SetOptions.merge()).await()
                     
