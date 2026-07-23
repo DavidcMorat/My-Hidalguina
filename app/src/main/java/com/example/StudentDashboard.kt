@@ -62,7 +62,7 @@ data class StudentAnnouncement(
 )
 
 suspend fun generateAiStudyPlan(courseName: String, topicName: String): List<String> = withContext(Dispatchers.IO) {
-    val apiKey = BuildConfig.GEMINI_API_KEY
+    val apiKey = ConfigManager.getGeminiKey()
     if (apiKey.isEmpty() || apiKey == "MY_GEMINI_API_KEY") {
         return@withContext listOf(
             "Paso 1: Leer conceptos fundamentales de $topicName en $courseName",
@@ -71,7 +71,7 @@ suspend fun generateAiStudyPlan(courseName: String, topicName: String): List<Str
         )
     }
 
-    val url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=$apiKey"
+    val url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=$apiKey"
     val client = OkHttpClient.Builder()
         .connectTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
         .readTimeout(30, java.util.concurrent.TimeUnit.SECONDS)

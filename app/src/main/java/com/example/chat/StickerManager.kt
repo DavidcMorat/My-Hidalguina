@@ -32,9 +32,14 @@ object StickerManager {
     // Default high-quality static and animated GIF sticker packs
     val defaultPacks = emptyList<StickerPack>()
 
-    private val GIPHY_KEYS = listOf(
-        BuildConfig.GIPHY_API_KEY
-    )
+    private suspend fun getGiphyKeys(): List<String> {
+        val firestoreKey = com.example.ConfigManager.getGiphyKey()
+        return if (firestoreKey != BuildConfig.GIPHY_API_KEY && firestoreKey.isNotEmpty()) {
+            listOf(firestoreKey, BuildConfig.GIPHY_API_KEY)
+        } else {
+            listOf(BuildConfig.GIPHY_API_KEY)
+        }
+    }
 
     private fun parseGiphyResponse(bodyString: String): List<Sticker> {
         val json = JSONObject(bodyString)
@@ -151,7 +156,7 @@ object StickerManager {
         val limit = 40
         val client = OkHttpClient()
         
-        for (key in GIPHY_KEYS) {
+        for (key in getGiphyKeys()) {
             val url = "https://api.giphy.com/v1/stickers/trending?api_key=$key&limit=$limit"
             val request = Request.Builder().url(url).build()
             try {
@@ -194,7 +199,7 @@ object StickerManager {
         val client = OkHttpClient()
         val encodedQuery = java.net.URLEncoder.encode(query, "UTF-8")
         
-        for (key in GIPHY_KEYS) {
+        for (key in getGiphyKeys()) {
             val url = "https://api.giphy.com/v1/stickers/search?api_key=$key&q=$encodedQuery&limit=$limit"
             val request = Request.Builder().url(url).build()
             try {

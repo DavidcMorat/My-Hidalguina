@@ -46,8 +46,6 @@ fun TutorIaScreen(
     var isSending by remember { mutableStateOf(false) }
     val coroutineScope = rememberCoroutineScope()
     
-    val apiKey = BuildConfig.GEMINI_API_KEY
-    
     Column(modifier = modifier.fillMaxSize().background(Color(0xFFF7F7F7))) {
         TopAppBar(
             title = { Text("Tutor IA", fontWeight = FontWeight.Bold, color = Color.White) },
@@ -108,7 +106,7 @@ fun TutorIaScreen(
                         isSending = true
                         
                         coroutineScope.launch {
-                            val aiResponse = generateTutorResponse(apiKey, userText)
+                            val aiResponse = generateTutorResponse(userText)
                             
                             // Check if user is asking for a plan
                             if (userText.lowercase().contains("plan") || userText.lowercase().contains("estudiar")) {
@@ -143,12 +141,13 @@ fun TutorIaScreen(
     }
 }
 
-suspend fun generateTutorResponse(apiKey: String, message: String): String = withContext(Dispatchers.IO) {
+suspend fun generateTutorResponse(message: String): String = withContext(Dispatchers.IO) {
+    val apiKey = ConfigManager.getGeminiKey()
     if (apiKey.isEmpty() || apiKey == "MY_GEMINI_API_KEY") {
         return@withContext "Recuerda que estoy aquí para guiarte. Piensa en qué conceptos clave están involucrados y trata de deducir el siguiente paso. ¿Qué opinas?"
     }
 
-    val url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=$apiKey"
+    val url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=$apiKey"
     val client = OkHttpClient.Builder().build()
 
     val prompt = """
