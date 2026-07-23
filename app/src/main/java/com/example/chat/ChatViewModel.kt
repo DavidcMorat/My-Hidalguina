@@ -212,9 +212,13 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     db.collection("messages").document(receiverId)
                         .update("pending_list", com.google.firebase.firestore.FieldValue.arrayUnion(firestoreMsg)).await()
                 } catch (e: Exception) {
-                    // If the document doesn't exist yet, we create it
-                    db.collection("messages").document(receiverId)
-                        .set(hashMapOf("pending_list" to listOf(firestoreMsg)), com.google.firebase.firestore.SetOptions.merge()).await()
+                    try {
+                        // If the document doesn't exist yet, we create it
+                        db.collection("messages").document(receiverId)
+                            .set(hashMapOf("pending_list" to listOf(firestoreMsg)), com.google.firebase.firestore.SetOptions.merge()).await()
+                    } catch (e2: Exception) {
+                        e2.printStackTrace()
+                    }
                 }
             }
         }
