@@ -1,6 +1,7 @@
 package com.example.chat
 
 import android.app.Application
+import android.util.Log
 import android.content.Context
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
@@ -194,32 +195,40 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         )
 
         viewModelScope.launch {
-            // Save locally
-            withContext(Dispatchers.IO) { chatDao.insertMessage(chatMessage) }
-            
-            if (receiverId != myUid) {
-                // Send to Firestore under receiver's pending messages
-                val firestoreMsg = hashMapOf(
-                    "id" to messageId,
-                    "senderId" to myUid,
-                    "receiverId" to receiverId,
-                    "text" to text,
-                    "timestamp" to timestamp
-                )
+            AppLogger.d("SUPABASE_DEBUG", "CVM.sendMessage: Launched coroutine for message $messageId")
+            try {
+                // Save locally
+                AppLogger.d("SUPABASE_DEBUG", "CVM.sendMessage: Inserting into local Room DB...")
+                withContext(Dispatchers.IO) { chatDao.insertMessage(chatMessage) }
+                AppLogger.d("SUPABASE_DEBUG", "CVM.sendMessage: Saved locally in Room")
                 
-                try {
-                    // Optimized: Use arrayUnion to append message in a single operation without creating new documents
-                    db.collection("messages").document(receiverId)
-                        .update("pending_list", com.google.firebase.firestore.FieldValue.arrayUnion(firestoreMsg)).await()
-                } catch (e: Exception) {
+                if (receiverId != myUid) {
+                    AppLogger.d("SUPABASE_DEBUG", "CVM.sendMessage: receiverId ($receiverId) != myUid ($myUid), proceeding to send via Supabase")
+                    val supabaseMsg = SupabaseManager.SupabaseMessage(
+                        id = messageId,
+                        sender_id = myUid,
+                        receiver_id = receiverId,
+                        text = text,
+                        timestamp = timestamp,
+                        is_gif = false
+                    )
+                    AppLogger.d("SUPABASE_DEBUG", "CVM.sendMessage: Constructed SupabaseMessage object")
+                    
                     try {
-                        // If the document doesn't exist yet, we create it
-                        db.collection("messages").document(receiverId)
-                            .set(hashMapOf("pending_list" to listOf(firestoreMsg)), com.google.firebase.firestore.SetOptions.merge()).await()
-                    } catch (e2: Exception) {
-                        e2.printStackTrace()
+                        AppLogger.d("SUPABASE_DEBUG", "CVM.sendMessage: Calling SupabaseManager.sendMessage()...")
+                        val success = SupabaseManager.sendMessage(supabaseMsg)
+                        AppLogger.d("SUPABASE_DEBUG", "CVM.sendMessage: SupabaseManager.sendMessage() returned $success")
+                        if (!success) {
+                            AppLogger.e("SUPABASE_DEBUG", "CVM.sendMessage: WARNING - sendMessage() returned false!")
+                        }
+                    } catch (e: Exception) {
+                        AppLogger.e("SUPABASE_DEBUG", "CVM.sendMessage: Exception calling SupabaseManager.sendMessage(): ${e.message}", e)
                     }
+                } else {
+                    AppLogger.d("SUPABASE_DEBUG", "CVM.sendMessage: receiverId == myUid, skipping Supabase network call")
                 }
+            } catch (e: Exception) {
+                AppLogger.e("SUPABASE_DEBUG", "CVM.sendMessage: Outer exception in coroutine: ${e.message}", e)
             }
         }
     }
@@ -300,160 +309,87 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private fun listenForIncomingMessages() {
         if (myUid.isEmpty()) return
         
-        // Listen to legacy pending collection (batch delete optimization)
-        db.collection("messages").document(myUid).collection("pending")
-            .addSnapshotListener { snapshot, error ->
-                if (error != null || snapshot == null || snapshot.isEmpty) return@addSnapshotListener
-                
-                viewModelScope.launch {
-                    var hasNewUnread = false
-                    val batch = db.batch()
-                    var batchCount = 0
-                    
-                    for (doc in snapshot.documents) {
-                        val senderId = doc.getString("senderId") ?: continue
-                        val text = doc.getString("text") ?: continue
-                        val timestamp = doc.getLong("timestamp") ?: System.currentTimeMillis()
-                        val id = doc.getString("id") ?: continue
-
-                        val isAlreadyProcessed = !processedMessageIds.add(id)
-
-                        if (!isAlreadyProcessed) {
-                            // We need to ensure we know the sender. If we don't, fetch their name from Firestore
-                            var user = withContext(Dispatchers.IO) { chatDao.getUser(senderId) }
-                            if (user == null) {
-                                try {
-                                    val userDoc = db.collection("users").document(senderId).get().await()
-                                    val displayName = userDoc.getString("displayName") ?: ""
-                                    val studentName = userDoc.getString("studentName") ?: ""
-                                    val display = if (studentName.isNotEmpty() && displayName.isNotEmpty()) {
-                                        "$studentName ($displayName)"
-                                    } else if (studentName.isNotEmpty()) {
-                                        studentName
-                                    } else if (displayName.isNotEmpty()) {
-                                        displayName
-                                    } else {
-                                        "Compañero"
-                                    }
-                                    user = ChatUser(senderId, display)
-                                    withContext(Dispatchers.IO) { chatDao.insertUser(user) }
-                                } catch (e: Exception) {
-                                    user = ChatUser(senderId, "Compañero")
-                                    withContext(Dispatchers.IO) { chatDao.insertUser(user) }
-                                }
-                            }
-
-                            val chatMessage = ChatMessage(
-                                id = id,
-                                senderId = senderId,
-                                receiverId = myUid,
-                                text = text,
-                                timestamp = timestamp,
-                                isSentByMe = false
-                            )
-                            
-                            withContext(Dispatchers.IO) { chatDao.insertMessage(chatMessage) }
-                            
-                            if (senderId != myUid) {
-                                val sharedPrefs = getApplication<Application>().getSharedPreferences("chat_unread_prefs", android.content.Context.MODE_PRIVATE)
-                                sharedPrefs.edit().putBoolean("unread_$senderId", true).apply()
-                                hasNewUnread = true
-                                if (senderId != activeChatUserId) {
-                                    showNotification(senderId, user?.displayName ?: "Compañero", text)
-                                }
-                            }
+        // Helper function to process an incoming message from any source (Supabase Realtime, Supabase Polling, or Firestore)
+        suspend fun processIncomingMessage(id: String, senderId: String, text: String, timestamp: Long) {
+            val isAlreadyProcessed = !processedMessageIds.add(id)
+            if (!isAlreadyProcessed) {
+                var user = withContext(Dispatchers.IO) { chatDao.getUser(senderId) }
+                if (user == null) {
+                    try {
+                        val userDoc = db.collection("users").document(senderId).get().await()
+                        val displayName = userDoc.getString("displayName") ?: ""
+                        val studentName = userDoc.getString("studentName") ?: ""
+                        val display = if (studentName.isNotEmpty() && displayName.isNotEmpty()) {
+                            "$studentName ($displayName)"
+                        } else if (studentName.isNotEmpty()) {
+                            studentName
+                        } else if (displayName.isNotEmpty()) {
+                            displayName
+                        } else {
+                            "Compañero"
                         }
-                        
-                        // Add to batch delete to save unit deletions
-                        val docRef = db.collection("messages").document(myUid)
-                            .collection("pending").document(id)
-                        batch.delete(docRef)
-                        batchCount++
+                        user = ChatUser(senderId, display)
+                        withContext(Dispatchers.IO) { chatDao.insertUser(user) }
+                    } catch (e: Exception) {
+                        user = ChatUser(senderId, "Compañero")
+                        withContext(Dispatchers.IO) { chatDao.insertUser(user) }
                     }
-                    if (hasNewUnread) {
-                        _unreadTrigger.value += 1
-                    }
-                    if (batchCount > 0) {
-                        batch.commit()
+                }
+
+                val chatMessage = ChatMessage(
+                    id = id,
+                    senderId = senderId,
+                    receiverId = myUid,
+                    text = text,
+                    timestamp = timestamp,
+                    isSentByMe = false
+                )
+                
+                withContext(Dispatchers.IO) { chatDao.insertMessage(chatMessage) }
+                
+                if (senderId != myUid) {
+                    val sharedPrefs = getApplication<Application>().getSharedPreferences("chat_unread_prefs", android.content.Context.MODE_PRIVATE)
+                    sharedPrefs.edit().putBoolean("unread_$senderId", true).apply()
+                    _unreadTrigger.value += 1
+                    if (senderId != activeChatUserId) {
+                        showNotification(senderId, user?.displayName ?: "Compañero", text)
                     }
                 }
             }
+        }
 
-        // Listen to optimized pending_list array
-        db.collection("messages").document(myUid)
-            .addSnapshotListener { snapshot, error ->
-                if (error != null || snapshot == null || !snapshot.exists()) return@addSnapshotListener
-                
-                val pendingList = snapshot.get("pending_list") as? List<Map<String, Any>> ?: emptyList()
-                if (pendingList.isEmpty()) return@addSnapshotListener
-                
-                viewModelScope.launch {
-                    var hasNewUnread = false
-                    
-                    for (msgMap in pendingList) {
-                        val senderId = msgMap["senderId"] as? String ?: continue
-                        val text = msgMap["text"] as? String ?: continue
-                        val timestamp = (msgMap["timestamp"] as? Number)?.toLong() ?: System.currentTimeMillis()
-                        val id = msgMap["id"] as? String ?: continue
-
-                        val isAlreadyProcessed = !processedMessageIds.add(id)
-
-                        if (!isAlreadyProcessed) {
-                            var user = withContext(Dispatchers.IO) { chatDao.getUser(senderId) }
-                            if (user == null) {
-                                try {
-                                    val userDoc = db.collection("users").document(senderId).get().await()
-                                    val displayName = userDoc.getString("displayName") ?: ""
-                                    val studentName = userDoc.getString("studentName") ?: ""
-                                    val display = if (studentName.isNotEmpty() && displayName.isNotEmpty()) {
-                                        "$studentName ($displayName)"
-                                    } else if (studentName.isNotEmpty()) {
-                                        studentName
-                                    } else if (displayName.isNotEmpty()) {
-                                        displayName
-                                    } else {
-                                        "Compañero"
-                                    }
-                                    user = ChatUser(senderId, display)
-                                    withContext(Dispatchers.IO) { chatDao.insertUser(user) }
-                                } catch (e: Exception) {
-                                    user = ChatUser(senderId, "Compañero")
-                                    withContext(Dispatchers.IO) { chatDao.insertUser(user) }
-                                }
-                            }
-
-                            val chatMessage = ChatMessage(
-                                id = id,
-                                senderId = senderId,
-                                receiverId = myUid,
-                                text = text,
-                                timestamp = timestamp,
-                                isSentByMe = false
-                            )
-                            
-                            withContext(Dispatchers.IO) { chatDao.insertMessage(chatMessage) }
-                            
-                            if (senderId != myUid) {
-                                val sharedPrefs = getApplication<Application>().getSharedPreferences("chat_unread_prefs", android.content.Context.MODE_PRIVATE)
-                                sharedPrefs.edit().putBoolean("unread_$senderId", true).apply()
-                                hasNewUnread = true
-                                if (senderId != activeChatUserId) {
-                                    showNotification(senderId, user?.displayName ?: "Compañero", text)
-                                }
-                            }
-                        }
-                    }
-                    if (hasNewUnread) {
-                        _unreadTrigger.value += 1
-                    }
-                    
-                    // Optimized clearance: Uses arrayRemove instead of unit deletions!
-                    if (pendingList.isNotEmpty()) {
-                        db.collection("messages").document(myUid)
-                            .update("pending_list", com.google.firebase.firestore.FieldValue.arrayRemove(*pendingList.toTypedArray()))
-                    }
+        // A) Supabase Realtime Listener
+        viewModelScope.launch {
+            AppLogger.d("SUPABASE_DEBUG", "CVM.listenForIncomingMessages: Launched Realtime coroutine")
+            try {
+                SupabaseManager.listenForNewMessages(myUid).collect { msg ->
+                    AppLogger.d("SUPABASE_DEBUG", "CVM.listenForIncomingMessages: Collected realtime message: $msg")
+                    processIncomingMessage(msg.id, msg.sender_id, msg.text, msg.timestamp)
                 }
+            } catch (e: Exception) {
+                AppLogger.e("SUPABASE_DEBUG", "CVM.listenForIncomingMessages: Exception in Realtime flow: ${e.message}", e)
             }
+        }
+
+        // B) Supabase Polling / Catch-up Sync (Every 5 seconds)
+        viewModelScope.launch {
+            AppLogger.d("SUPABASE_DEBUG", "CVM.listenForIncomingMessages: Launched Polling coroutine")
+            while (true) {
+                try {
+                    val pendingMessages = SupabaseManager.fetchPendingMessages(myUid)
+                    if (pendingMessages.isNotEmpty()) {
+                        AppLogger.d("SUPABASE_DEBUG", "CVM.listenForIncomingMessages: Polling found ${pendingMessages.size} messages")
+                    }
+                    for (msg in pendingMessages) {
+                        processIncomingMessage(msg.id, msg.sender_id, msg.text, msg.timestamp)
+                    }
+                } catch (e: Exception) {
+                    AppLogger.e("SUPABASE_DEBUG", "CVM.listenForIncomingMessages: Exception in Polling loop: ${e.message}", e)
+                }
+                kotlinx.coroutines.delay(5000)
+            }
+        }
+
     }
 
     private fun createNotificationChannel() {

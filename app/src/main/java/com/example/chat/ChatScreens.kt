@@ -14,6 +14,7 @@ import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Send
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.BugReport
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -271,6 +272,15 @@ fun ChatDetailScreen(
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Volver")
+                    }
+                },
+                actions = {
+                    var showLogs by remember { mutableStateOf(false) }
+                    IconButton(onClick = { showLogs = true }) {
+                        Icon(Icons.Filled.BugReport, contentDescription = "Logs")
+                    }
+                    if (showLogs) {
+                        LogDialog(onDismiss = { showLogs = false })
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -770,4 +780,47 @@ fun StickersPanel(
             }
         }
     }
+}
+
+@Composable
+fun LogDialog(onDismiss: () -> Unit) {
+    val logs by AppLogger.logs.collectAsState()
+    val context = androidx.compose.ui.platform.LocalContext.current
+    
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { androidx.compose.material3.Text("Diagnostic Logs") },
+        text = {
+            androidx.compose.foundation.lazy.LazyColumn(
+                modifier = Modifier.fillMaxWidth().height(400.dp)
+            ) {
+                items(logs.size) { index ->
+                    androidx.compose.material3.Text(
+                        text = logs[index],
+                        style = androidx.compose.material3.MaterialTheme.typography.bodySmall,
+                        modifier = Modifier.padding(bottom = 4.dp)
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            androidx.compose.material3.TextButton(
+                onClick = {
+                    val clipboard = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                    val clip = android.content.ClipData.newPlainText("Logs", logs.joinToString("\n"))
+                    clipboard.setPrimaryClip(clip)
+                    android.widget.Toast.makeText(context, "Logs copied!", android.widget.Toast.LENGTH_SHORT).show()
+                }
+            ) {
+                androidx.compose.material3.Text("Copy All")
+            }
+        },
+        dismissButton = {
+            androidx.compose.material3.TextButton(
+                onClick = { AppLogger.clear() }
+            ) {
+                androidx.compose.material3.Text("Clear")
+            }
+        }
+    )
 }
