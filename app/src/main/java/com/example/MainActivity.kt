@@ -27,24 +27,7 @@ class MainActivity : ComponentActivity() {
         }
 
         enableEdgeToEdge()
-        
-        try {
-            if (com.google.firebase.FirebaseApp.getApps(this).isEmpty()) {
-                try {
-                    com.google.firebase.FirebaseApp.initializeApp(this)
-                } catch (e: Exception) {
-                    val options = com.google.firebase.FirebaseOptions.Builder()
-                        .setProjectId("appmfhf")
-                        .setApplicationId("1:573810459906:android:385cda9d797f97c5206e1b")
-                        .setApiKey("AIzaSyB4Bo1RBTXC8t-6ef0Ng-G8Zcod-xmHa28")
-                        .setStorageBucket("appmfhf.firebasestorage.app")
-                        .build()
-                    com.google.firebase.FirebaseApp.initializeApp(this, options)
-                }
-            }
-        } catch (e: Exception) {
-            e.printStackTrace()
-        }
+        MainApplication.initFirebase(this)
 
         setContent {
             MyApplicationTheme {

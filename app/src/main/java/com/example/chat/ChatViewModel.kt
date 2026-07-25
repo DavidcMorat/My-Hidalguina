@@ -26,11 +26,11 @@ data class ChatUserWithStatus(
 )
 
 class ChatViewModel(application: Application) : AndroidViewModel(application) {
-    private val db = FirebaseFirestore.getInstance()
-    private val auth = FirebaseAuth.getInstance()
+    private val db by lazy { FirebaseFirestore.getInstance() }
+    private val auth by lazy { FirebaseAuth.getInstance() }
     private val chatDao = ChatDatabase.getDatabase(application).chatDao()
 
-    val myUid = auth.currentUser?.uid ?: ""
+    val myUid get() = auth.currentUser?.uid ?: ""
 
     // Active chat screen tracking to prevent showing duplicate notifications
     var activeChatUserId: String? = null
