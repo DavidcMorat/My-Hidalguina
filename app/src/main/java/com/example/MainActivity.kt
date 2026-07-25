@@ -27,6 +27,13 @@ class MainActivity : ComponentActivity() {
         }
 
         enableEdgeToEdge()
+        
+        try {
+            com.google.firebase.FirebaseApp.initializeApp(this)
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+
         setContent {
             MyApplicationTheme {
                 val navController = rememberNavController()
