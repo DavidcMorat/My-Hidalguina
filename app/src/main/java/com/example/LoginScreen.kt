@@ -70,7 +70,7 @@ fun LoginScreen(
             Spacer(modifier = Modifier.height(12.dp))
             
             Image(
-                painter = painterResource(id = R.drawable.icon_mfhf),
+                painter = painterResource(id = R.drawable.ic_school_logo),
                 contentDescription = "Logo MFHF",
                 contentScale = ContentScale.Fit,
                 modifier = Modifier

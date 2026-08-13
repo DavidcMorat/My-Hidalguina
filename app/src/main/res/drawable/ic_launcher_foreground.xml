@@ -3,6 +3,6 @@
     <item
         android:width="66dp"
         android:height="66dp"
-        android:drawable="@drawable/icon_mfhf"
+        android:drawable="@drawable/ic_school_logo"
         android:gravity="center" />
 </layer-list>
