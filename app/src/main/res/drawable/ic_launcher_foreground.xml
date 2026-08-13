@@ -3,6 +3,6 @@
     <item
         android:width="66dp"
         android:height="66dp"
-        android:drawable="@drawable/minimalist_torch_book_icon_1784249302440"
+        android:drawable="@drawable/icon_mfhf"
         android:gravity="center" />
 </layer-list>
