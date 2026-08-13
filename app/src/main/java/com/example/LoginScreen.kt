@@ -22,6 +22,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -66,19 +67,29 @@ fun LoginScreen(
                 .padding(horizontal = 24.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Spacer(modifier = Modifier.height(48.dp))
+            Spacer(modifier = Modifier.height(12.dp))
+            
+            Image(
+                painter = painterResource(id = R.drawable.icon_mfhf),
+                contentDescription = "Logo MFHF",
+                contentScale = ContentScale.Fit,
+                modifier = Modifier
+                    .size(230.dp)
+            )
+
+            Spacer(modifier = Modifier.height(8.dp))
             
             Text(
                 text = "Bienvenido",
                 fontSize = 28.sp,
                 fontWeight = FontWeight.Bold,
-                color = Color.White
+                color = Color.Black
             )
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(6.dp))
             Text(
                 text = "Inicia sesión para continuar\ntu aprendizaje.",
                 fontSize = 14.sp,
-                color = Color.White,
+                color = BlackTertiary,
                 textAlign = TextAlign.Center
             )
             
