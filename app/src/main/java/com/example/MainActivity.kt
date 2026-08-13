@@ -17,6 +17,9 @@ import com.example.ui.theme.MyApplicationTheme
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        if (com.google.firebase.FirebaseApp.getApps(this).isEmpty()) {
+            com.google.firebase.FirebaseApp.initializeApp(this)
+        }
         enableEdgeToEdge()
         setContent {
             MyApplicationTheme {
