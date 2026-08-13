@@ -1,22 +1,23 @@
 package com.example.chat
 
 import android.app.Application
-import android.util.Log
 import android.content.Context
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.database.ChildEventListener
+import com.google.firebase.database.DataSnapshot
+import com.google.firebase.database.DatabaseError
+import com.google.firebase.database.DatabaseReference
+import com.google.firebase.database.FirebaseDatabase
 import com.google.firebase.firestore.FirebaseFirestore
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.SharingStarted
-import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 import kotlinx.coroutines.tasks.await
+import kotlinx.coroutines.withContext
 
 data class ChatUserWithStatus(
     val user: ChatUser,
@@ -26,25 +27,24 @@ data class ChatUserWithStatus(
 )
 
 class ChatViewModel(application: Application) : AndroidViewModel(application) {
-    private val db by lazy { FirebaseFirestore.getInstance() }
-    private val auth by lazy { FirebaseAuth.getInstance() }
+    private val firestore = FirebaseFirestore.getInstance()
+    private val auth = FirebaseAuth.getInstance()
     private val chatDao = ChatDatabase.getDatabase(application).chatDao()
 
-    val myUid get() = auth.currentUser?.uid ?: ""
+    val myUid = auth.currentUser?.uid ?: ""
 
-    // Active chat screen tracking to prevent showing duplicate notifications
-    var activeChatUserId: String? = null
-
-    // Set of processed message IDs to prevent duplicate notification spam and double-processing
-    private val processedMessageIds = java.util.Collections.synchronizedSet(HashSet<String>())
+    // Realtime Database reference and listener for active chat session
+    private var realtimeDbRef: DatabaseReference? = null
+    private var childEventListener: ChildEventListener? = null
+    private var isSessionActive = false
 
     // State for user search
     private val _searchResults = MutableStateFlow<List<ChatUser>>(emptyList())
     val searchResults: StateFlow<List<ChatUser>> = _searchResults
-    
+
     private val _classroomUsers = MutableStateFlow<List<ChatUser>>(emptyList())
     val classroomUsers: StateFlow<List<ChatUser>> = _classroomUsers
-    
+
     private val _isSearching = MutableStateFlow(false)
     val isSearching: StateFlow<Boolean> = _isSearching
 
@@ -60,17 +60,17 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         _unreadTrigger
     ) { users, messages, _ ->
         users.map { user ->
-            val userMessages = messages.filter { 
-                (it.senderId == myUid && it.receiverId == user.uid) || 
+            val userMessages = messages.filter {
+                (it.senderId == myUid && it.receiverId == user.uid) ||
                 (it.senderId == user.uid && it.receiverId == myUid)
             }
             val lastMsg = userMessages.maxByOrNull { it.timestamp }
             val lastTimestamp = lastMsg?.timestamp ?: 0L
             val lastText = lastMsg?.text ?: ""
-            
+
             val sharedPrefs = getApplication<Application>().getSharedPreferences("chat_unread_prefs", Context.MODE_PRIVATE)
             val hasUnread = sharedPrefs.getBoolean("unread_${user.uid}", false)
-            
+
             ChatUserWithStatus(user, lastTimestamp, hasUnread, lastText)
         }.sortedWith(
             compareByDescending<ChatUserWithStatus> { it.hasUnread }
@@ -78,30 +78,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         )
     }
 
-    private val _favoritesPack = MutableStateFlow<StickerPack>(
-        StickerPack("favorites", "Favoritos ❤️", "https://media.giphy.com/media/v1.Y2lkPTc5MGI3NjExMWhnM280cTFrbmdnYnptNXQ3N2l0amtrdGFleGlrczN1enJ1eDlpZCZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9cw/o7R0N2F/giphy.gif", emptyList())
-    )
-
-    val stickerPacks: StateFlow<List<StickerPack>> = _favoritesPack.map { favorites ->
-        listOf(favorites) + StickerManager.defaultPacks
-    }.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
-
-    private val _giphySearchResults = MutableStateFlow<List<Sticker>>(emptyList())
-    val giphySearchResults: StateFlow<List<Sticker>> = _giphySearchResults
-
-    private val _isGiphySearching = MutableStateFlow(false)
-    val isGiphySearching: StateFlow<Boolean> = _isGiphySearching
-
     init {
-        createNotificationChannel()
-        // Load custom user stickers
-        loadFavorites()
-        loadTrendingGiphy()
-
-        // Start listening to incoming messages when the viewmodel is created
-        listenForIncomingMessages()
-        
-        // Add current user to local chats to allow self-chat
+        // Ensure local self user is present
         if (myUid.isNotEmpty()) {
             viewModelScope.launch {
                 val existing = withContext(Dispatchers.IO) { chatDao.getUser(myUid) }
@@ -111,35 +89,170 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     withContext(Dispatchers.IO) { chatDao.insertUser(selfUser) }
                 }
             }
-            loadClassroomUsers()
         }
     }
-    
-    private fun loadClassroomUsers() {
+
+    /**
+     * Smart Activation System:
+     * Called when user enters the Chat section/screen.
+     * Starts Realtime Database listener and fetches classroom users from Firestore.
+     */
+    fun activateChatSession() {
+        if (isSessionActive || myUid.isEmpty()) return
+        isSessionActive = true
+
+        try {
+            // Connect Realtime Database socket only when in chat section
+            FirebaseDatabase.getInstance().goOnline()
+            startListeningToRealtimeDbMessages()
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+
+        loadClassroomUsers()
+    }
+
+    /**
+     * Smart Deactivation System:
+     * Called when user leaves the Chat section/screen.
+     * Stops Realtime Database listener and disconnects RTDB socket.
+     */
+    fun deactivateChatSession() {
+        if (!isSessionActive) return
+        isSessionActive = false
+
+        stopListeningToRealtimeDbMessages()
+
+        try {
+            // Disconnect Realtime Database socket while navigating other app sections
+            FirebaseDatabase.getInstance().goOffline()
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
+    private fun startListeningToRealtimeDbMessages() {
+        if (myUid.isEmpty()) return
+
+        try {
+            val ref = FirebaseDatabase.getInstance().getReference("messages").child(myUid)
+            realtimeDbRef = ref
+
+            val listener = object : ChildEventListener {
+                override fun onChildAdded(snapshot: DataSnapshot, previousChildName: String?) {
+                    processIncomingMessageSnapshot(snapshot)
+                }
+
+                override fun onChildChanged(snapshot: DataSnapshot, previousChildName: String?) {
+                    processIncomingMessageSnapshot(snapshot)
+                }
+
+                override fun onChildRemoved(snapshot: DataSnapshot) {}
+                override fun onChildMoved(snapshot: DataSnapshot, previousChildName: String?) {}
+                override fun onCancelled(error: DatabaseError) {}
+            }
+
+            childEventListener = listener
+            ref.addChildEventListener(listener)
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
+    private fun stopListeningToRealtimeDbMessages() {
+        try {
+            if (realtimeDbRef != null && childEventListener != null) {
+                realtimeDbRef?.removeEventListener(childEventListener!!)
+                childEventListener = null
+                realtimeDbRef = null
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
+    private fun processIncomingMessageSnapshot(snapshot: DataSnapshot) {
+        val id = snapshot.child("id").getValue(String::class.java) ?: snapshot.key ?: return
+        val senderId = snapshot.child("senderId").getValue(String::class.java) ?: return
+        val text = snapshot.child("text").getValue(String::class.java) ?: return
+        val timestamp = snapshot.child("timestamp").getValue(Long::class.java) ?: System.currentTimeMillis()
+
+        viewModelScope.launch {
+            // Fetch sender profile info from Firestore if not in Room DB
+            var user = withContext(Dispatchers.IO) { chatDao.getUser(senderId) }
+            if (user == null) {
+                try {
+                    val userDoc = firestore.collection("users").document(senderId).get().await()
+                    val displayName = userDoc.getString("displayName") ?: ""
+                    val studentName = userDoc.getString("studentName") ?: ""
+                    val display = if (studentName.isNotEmpty() && displayName.isNotEmpty()) {
+                        "$studentName ($displayName)"
+                    } else if (studentName.isNotEmpty()) {
+                        studentName
+                    } else if (displayName.isNotEmpty()) {
+                        displayName
+                    } else {
+                        "Compañero"
+                    }
+                    user = ChatUser(senderId, display)
+                    withContext(Dispatchers.IO) { chatDao.insertUser(user) }
+                } catch (e: Exception) {
+                    user = ChatUser(senderId, "Compañero")
+                    withContext(Dispatchers.IO) { chatDao.insertUser(user) }
+                }
+            }
+
+            val chatMessage = ChatMessage(
+                id = id,
+                senderId = senderId,
+                receiverId = myUid,
+                text = text,
+                timestamp = timestamp,
+                isSentByMe = false
+            )
+
+            withContext(Dispatchers.IO) { chatDao.insertMessage(chatMessage) }
+
+            if (senderId != myUid) {
+                val sharedPrefs = getApplication<Application>().getSharedPreferences("chat_unread_prefs", Context.MODE_PRIVATE)
+                sharedPrefs.edit().putBoolean("unread_$senderId", true).apply()
+                _unreadTrigger.value += 1
+            }
+
+            // Remove processed message from Realtime Database node
+            try {
+                snapshot.ref.removeValue()
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+    }
+
+    fun loadClassroomUsers() {
         viewModelScope.launch {
             try {
                 val myDoc = try {
-                    db.collection("users").document(myUid).get().await()
+                    firestore.collection("users").document(myUid).get().await()
                 } catch (e: Exception) {
                     null
                 }
-                
-                val sharedPrefs = getApplication<Application>().getSharedPreferences("user_profile_prefs", android.content.Context.MODE_PRIVATE)
+
+                val sharedPrefs = getApplication<Application>().getSharedPreferences("user_profile_prefs", Context.MODE_PRIVATE)
                 val grade = myDoc?.getString("grade") ?: sharedPrefs.getString("grade_backup_$myUid", null) ?: return@launch
                 val section = myDoc?.getString("section") ?: sharedPrefs.getString("section_backup_$myUid", null) ?: return@launch
-                
-                val result = db.collection("users")
+
+                val result = firestore.collection("users")
                     .whereEqualTo("grade", grade)
                     .whereEqualTo("section", section)
                     .get().await()
-                    
+
                 val users = result.documents.mapNotNull { doc ->
                     val uid = doc.getString("uid") ?: doc.id
                     if (uid == myUid) return@mapNotNull null
-                    
+
                     val displayName = doc.getString("displayName") ?: ""
                     val studentName = doc.getString("studentName") ?: ""
-                    
+
                     val display = if (studentName.isNotEmpty() && displayName.isNotEmpty()) {
                         "$studentName ($displayName)"
                     } else if (studentName.isNotEmpty()) {
@@ -163,10 +276,10 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
             _searchResults.value = emptyList()
             return
         }
-        
+
         _isSearching.value = true
-        val filtered = _classroomUsers.value.filter { 
-            it.displayName.contains(query, ignoreCase = true) 
+        val filtered = _classroomUsers.value.filter {
+            it.displayName.contains(query, ignoreCase = true)
         }
         _searchResults.value = filtered
         _isSearching.value = false
@@ -184,7 +297,7 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         if (text.isBlank()) return
         val messageId = java.util.UUID.randomUUID().toString()
         val timestamp = System.currentTimeMillis()
-        
+
         val chatMessage = ChatMessage(
             id = messageId,
             senderId = myUid,
@@ -195,104 +308,24 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         )
 
         viewModelScope.launch {
-            AppLogger.d("SUPABASE_DEBUG", "CVM.sendMessage: Launched coroutine for message $messageId")
-            try {
-                // Save locally
-                AppLogger.d("SUPABASE_DEBUG", "CVM.sendMessage: Inserting into local Room DB...")
-                withContext(Dispatchers.IO) { chatDao.insertMessage(chatMessage) }
-                AppLogger.d("SUPABASE_DEBUG", "CVM.sendMessage: Saved locally in Room")
-                
-                if (receiverId != myUid) {
-                    AppLogger.d("SUPABASE_DEBUG", "CVM.sendMessage: receiverId ($receiverId) != myUid ($myUid), proceeding to send via Supabase")
-                    val supabaseMsg = SupabaseManager.SupabaseMessage(
-                        id = messageId,
-                        sender_id = myUid,
-                        receiver_id = receiverId,
-                        text = text,
-                        timestamp = timestamp,
-                        is_gif = false
-                    )
-                    AppLogger.d("SUPABASE_DEBUG", "CVM.sendMessage: Constructed SupabaseMessage object")
-                    
-                    try {
-                        AppLogger.d("SUPABASE_DEBUG", "CVM.sendMessage: Calling SupabaseManager.sendMessage()...")
-                        val success = SupabaseManager.sendMessage(supabaseMsg)
-                        AppLogger.d("SUPABASE_DEBUG", "CVM.sendMessage: SupabaseManager.sendMessage() returned $success")
-                        if (!success) {
-                            AppLogger.e("SUPABASE_DEBUG", "CVM.sendMessage: WARNING - sendMessage() returned false!")
-                        }
-                    } catch (e: Exception) {
-                        AppLogger.e("SUPABASE_DEBUG", "CVM.sendMessage: Exception calling SupabaseManager.sendMessage(): ${e.message}", e)
-                    }
-                } else {
-                    AppLogger.d("SUPABASE_DEBUG", "CVM.sendMessage: receiverId == myUid, skipping Supabase network call")
-                }
-            } catch (e: Exception) {
-                AppLogger.e("SUPABASE_DEBUG", "CVM.sendMessage: Outer exception in coroutine: ${e.message}", e)
-            }
-        }
-    }
+            // Save locally in Room DB
+            withContext(Dispatchers.IO) { chatDao.insertMessage(chatMessage) }
 
-    fun loadFavorites() {
-        _favoritesPack.value = StickerManager.loadFavorites(getApplication())
-    }
+            if (receiverId != myUid) {
+                // Send via Realtime Database
+                val rtdbMessage = hashMapOf(
+                    "id" to messageId,
+                    "senderId" to myUid,
+                    "receiverId" to receiverId,
+                    "text" to text,
+                    "timestamp" to timestamp
+                )
 
-    fun loadTrendingGiphy() {
-        viewModelScope.launch {
-            _isGiphySearching.value = true
-            val trending = StickerManager.getTrendingGiphy()
-            _giphySearchResults.value = trending
-            _isGiphySearching.value = false
-        }
-    }
-
-    fun searchGiphy(query: String) {
-        if (query.isBlank()) {
-            loadTrendingGiphy()
-            return
-        }
-        viewModelScope.launch {
-            _isGiphySearching.value = true
-            val results = StickerManager.searchGiphy(query)
-            _giphySearchResults.value = results
-            _isGiphySearching.value = false
-        }
-    }
-
-    fun saveStickerToFavorites(urlOrBase64Data: String, isGif: Boolean): Boolean {
-        val saved = if (urlOrBase64Data.startsWith("http")) {
-            StickerManager.saveFavoriteSticker(
-                getApplication(),
-                id = "sticker_${System.currentTimeMillis()}",
-                url = urlOrBase64Data,
-                isGif = isGif
-            )
-        } else {
-            StickerManager.saveReceivedSticker(getApplication(), urlOrBase64Data, isGif) != null
-        }
-        if (saved) {
-            loadFavorites()
-        }
-        return saved
-    }
-
-    fun sendSticker(receiverId: String, sticker: Sticker) {
-        val url = sticker.url ?: ""
-        if (url.isNotEmpty()) {
-            val prefix = if (sticker.isGif) "[STICKER_GIF]:" else "[STICKER]:"
-            sendMessage(receiverId, prefix + url)
-        } else if (sticker.localPath != null) {
-            viewModelScope.launch(Dispatchers.IO) {
                 try {
-                    val file = java.io.File(sticker.localPath)
-                    if (file.exists()) {
-                        val bytes = file.readBytes()
-                        val base64Data = android.util.Base64.encodeToString(bytes, android.util.Base64.NO_WRAP)
-                        val prefix = if (sticker.isGif) "[STICKER_GIF]:" else "[STICKER]:"
-                        withContext(Dispatchers.Main) {
-                            sendMessage(receiverId, prefix + base64Data)
-                        }
-                    }
+                    FirebaseDatabase.getInstance().getReference("messages")
+                        .child(receiverId)
+                        .child(messageId)
+                        .setValue(rtdbMessage)
                 } catch (e: Exception) {
                     e.printStackTrace()
                 }
@@ -301,150 +334,13 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun markChatAsRead(otherUserId: String) {
-        val sharedPrefs = getApplication<Application>().getSharedPreferences("chat_unread_prefs", android.content.Context.MODE_PRIVATE)
+        val sharedPrefs = getApplication<Application>().getSharedPreferences("chat_unread_prefs", Context.MODE_PRIVATE)
         sharedPrefs.edit().putBoolean("unread_$otherUserId", false).apply()
         _unreadTrigger.value += 1
     }
 
-    private fun listenForIncomingMessages() {
-        if (myUid.isEmpty()) return
-        
-        // Helper function to process an incoming message from any source (Supabase Realtime, Supabase Polling, or Firestore)
-        suspend fun processIncomingMessage(id: String, senderId: String, text: String, timestamp: Long) {
-            val isAlreadyProcessed = !processedMessageIds.add(id)
-            if (!isAlreadyProcessed) {
-                var user = withContext(Dispatchers.IO) { chatDao.getUser(senderId) }
-                if (user == null) {
-                    try {
-                        val userDoc = db.collection("users").document(senderId).get().await()
-                        val displayName = userDoc.getString("displayName") ?: ""
-                        val studentName = userDoc.getString("studentName") ?: ""
-                        val display = if (studentName.isNotEmpty() && displayName.isNotEmpty()) {
-                            "$studentName ($displayName)"
-                        } else if (studentName.isNotEmpty()) {
-                            studentName
-                        } else if (displayName.isNotEmpty()) {
-                            displayName
-                        } else {
-                            "Compañero"
-                        }
-                        user = ChatUser(senderId, display)
-                        withContext(Dispatchers.IO) { chatDao.insertUser(user) }
-                    } catch (e: Exception) {
-                        user = ChatUser(senderId, "Compañero")
-                        withContext(Dispatchers.IO) { chatDao.insertUser(user) }
-                    }
-                }
-
-                val chatMessage = ChatMessage(
-                    id = id,
-                    senderId = senderId,
-                    receiverId = myUid,
-                    text = text,
-                    timestamp = timestamp,
-                    isSentByMe = false
-                )
-                
-                withContext(Dispatchers.IO) { chatDao.insertMessage(chatMessage) }
-                
-                if (senderId != myUid) {
-                    val sharedPrefs = getApplication<Application>().getSharedPreferences("chat_unread_prefs", android.content.Context.MODE_PRIVATE)
-                    sharedPrefs.edit().putBoolean("unread_$senderId", true).apply()
-                    _unreadTrigger.value += 1
-                    if (senderId != activeChatUserId) {
-                        showNotification(senderId, user?.displayName ?: "Compañero", text)
-                    }
-                }
-            }
-        }
-
-        // A) Supabase Realtime Listener
-        viewModelScope.launch {
-            AppLogger.d("SUPABASE_DEBUG", "CVM.listenForIncomingMessages: Launched Realtime coroutine")
-            try {
-                SupabaseManager.listenForNewMessages(myUid).collect { msg ->
-                    AppLogger.d("SUPABASE_DEBUG", "CVM.listenForIncomingMessages: Collected realtime message: $msg")
-                    processIncomingMessage(msg.id, msg.sender_id, msg.text, msg.timestamp)
-                }
-            } catch (e: Exception) {
-                AppLogger.e("SUPABASE_DEBUG", "CVM.listenForIncomingMessages: Exception in Realtime flow: ${e.message}", e)
-            }
-        }
-
-        // B) Supabase Polling / Catch-up Sync (Every 5 seconds)
-        viewModelScope.launch {
-            AppLogger.d("SUPABASE_DEBUG", "CVM.listenForIncomingMessages: Launched Polling coroutine")
-            while (true) {
-                try {
-                    val pendingMessages = SupabaseManager.fetchPendingMessages(myUid)
-                    if (pendingMessages.isNotEmpty()) {
-                        AppLogger.d("SUPABASE_DEBUG", "CVM.listenForIncomingMessages: Polling found ${pendingMessages.size} messages")
-                    }
-                    for (msg in pendingMessages) {
-                        processIncomingMessage(msg.id, msg.sender_id, msg.text, msg.timestamp)
-                    }
-                } catch (e: Exception) {
-                    AppLogger.e("SUPABASE_DEBUG", "CVM.listenForIncomingMessages: Exception in Polling loop: ${e.message}", e)
-                }
-                kotlinx.coroutines.delay(5000)
-            }
-        }
-
-    }
-
-    private fun createNotificationChannel() {
-        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
-            val name = "Mensajes de Chat"
-            val descriptionText = "Notificaciones de nuevos mensajes recibidos"
-            val importance = android.app.NotificationManager.IMPORTANCE_DEFAULT
-            val channel = android.app.NotificationChannel("chat_messages_channel", name, importance).apply {
-                description = descriptionText
-            }
-            val notificationManager: android.app.NotificationManager =
-                getApplication<Application>().getSystemService(android.content.Context.NOTIFICATION_SERVICE) as android.app.NotificationManager
-            notificationManager.createNotificationChannel(channel)
-        }
-    }
-
-    private fun showNotification(senderId: String, senderName: String, messageText: String) {
-        val context = getApplication<Application>()
-        
-        // Check notification permission for Android 13+
-        if (android.os.Build.VERSION.SDK_INT >= 33) {
-            val hasPermission = androidx.core.content.ContextCompat.checkSelfPermission(
-                context,
-                "android.permission.POST_NOTIFICATIONS"
-            ) == android.content.pm.PackageManager.PERMISSION_GRANTED
-            if (!hasPermission) return
-        }
-
-        // Use a generic intent to open the app or MainActivity
-        val intent = android.content.Intent(context, com.example.MainActivity::class.java).apply {
-            flags = android.content.Intent.FLAG_ACTIVITY_NEW_TASK or android.content.Intent.FLAG_ACTIVITY_CLEAR_TASK
-        }
-        val pendingIntent = android.app.PendingIntent.getActivity(
-            context,
-            0,
-            intent,
-            android.app.PendingIntent.FLAG_UPDATE_CURRENT or android.app.PendingIntent.FLAG_IMMUTABLE
-        )
-
-        // Parse special sticker markers to show a nice text like "Te envió un sticker"
-        val displayBody = when {
-            messageText.startsWith("[STICKER]:") || messageText.startsWith("[STICKER_GIF]:") -> "Te envió un sticker"
-            else -> messageText
-        }
-
-        val builder = androidx.core.app.NotificationCompat.Builder(context, "chat_messages_channel")
-            .setSmallIcon(android.R.drawable.stat_notify_chat)
-            .setContentTitle(senderName)
-            .setContentText(displayBody)
-            .setPriority(androidx.core.app.NotificationCompat.PRIORITY_DEFAULT)
-            .setContentIntent(pendingIntent)
-            .setAutoCancel(true)
-
-        val notificationManager = context.getSystemService(android.content.Context.NOTIFICATION_SERVICE) as android.app.NotificationManager
-        val notificationId = senderId.hashCode()
-        notificationManager.notify(notificationId, builder.build())
+    override fun onCleared() {
+        super.onCleared()
+        deactivateChatSession()
     }
 }

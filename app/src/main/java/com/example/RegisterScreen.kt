@@ -21,7 +21,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.res.painterResource
@@ -49,10 +48,6 @@ fun RegisterScreen(
     var section by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var passwordVisible by remember { mutableStateOf(false) }
-    var role by remember { mutableStateOf("student") } // "student" or "teacher"
-    var area by remember { mutableStateOf("") }
-    val selectedGrades = remember { mutableStateListOf<String>() }
-    val selectedSections = remember { mutableStateListOf<String>() }
 
     val context = LocalContext.current
     val authState by authViewModel.authState.collectAsState()
@@ -86,61 +81,19 @@ fun RegisterScreen(
             )
             Spacer(modifier = Modifier.height(8.dp))
             Text(
-                text = "Regístrate para comenzar\ntu labor escolar.",
+                text = "Regístrate para comenzar\ntu aprendizaje.",
                 fontSize = 14.sp,
                 color = Color.White,
                 textAlign = TextAlign.Center
             )
             
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(32.dp))
 
-            // Selector de Rol (Estudiante vs Docente)
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 12.dp)
-                    .background(Color.White.copy(alpha = 0.9f), RoundedCornerShape(12.dp))
-                    .border(1.dp, DividerGray, RoundedCornerShape(12.dp))
-                    .padding(4.dp),
-                horizontalArrangement = Arrangement.spacedBy(4.dp)
-            ) {
-                listOf(
-                    "student" to "Soy Estudiante",
-                    "teacher" to "Soy Docente"
-                ).forEach { (r, label) ->
-                    val isSelected = role == r
-                    Box(
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(40.dp)
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(if (isSelected) RedPrimary else Color.Transparent)
-                            .clickable { role = r }
-                            .wrapContentSize(Alignment.Center)
-                    ) {
-                        Text(
-                            text = label,
-                            color = if (isSelected) Color.White else BlackTertiary,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 13.sp
-                        )
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            // Campo de Nombre Real
             OutlinedTextField(
                 value = studentName,
                 onValueChange = { studentName = it },
                 modifier = Modifier.fillMaxWidth(),
-                placeholder = { 
-                    Text(
-                        if (role == "student") "Nombre de estudiante (No editable)" else "Nombre de docente", 
-                        color = TextGray
-                    ) 
-                },
+                placeholder = { Text("Nombre de estudiante (No editable)", color = TextGray) },
                 leadingIcon = { Icon(Icons.Filled.Person, contentDescription = null, tint = TextGray) },
                 shape = RoundedCornerShape(12.dp),
                 colors = OutlinedTextFieldDefaults.colors(
@@ -155,7 +108,6 @@ fun RegisterScreen(
             )
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Campo de Usuario
             OutlinedTextField(
                 value = username,
                 onValueChange = { username = it },
@@ -175,170 +127,53 @@ fun RegisterScreen(
             )
             Spacer(modifier = Modifier.height(16.dp))
             
-            if (role == "student") {
-                // CAMPOS DE ESTUDIANTE: GRADO Y SECCIÓN SIMPLE
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                    OutlinedTextField(
-                        value = grade,
-                        onValueChange = { newValue ->
-                            if (newValue.length <= 1 && (newValue.isEmpty() || newValue.all { it.isDigit() })) {
-                                grade = newValue
-                            }
-                        },
-                        modifier = Modifier.weight(1f),
-                        placeholder = { Text("Grado", color = TextGray) },
-                        shape = RoundedCornerShape(12.dp),
-                        colors = OutlinedTextFieldDefaults.colors(
-                            unfocusedBorderColor = DividerGray,
-                            focusedBorderColor = RedPrimary,
-                            unfocusedContainerColor = Color.White,
-                            focusedContainerColor = Color.White,
-                            focusedTextColor = BlackTertiary,
-                            unfocusedTextColor = BlackTertiary
-                        ),
-                        singleLine = true
-                    )
-                    
-                    OutlinedTextField(
-                        value = section,
-                        onValueChange = { newValue ->
-                            if (newValue.length <= 1) {
-                                val upper = newValue.uppercase()
-                                if (upper.isEmpty() || upper.all { it.isLetter() }) {
-                                    section = upper
-                                }
-                            }
-                        },
-                        modifier = Modifier.weight(1f),
-                        placeholder = { Text("Sección", color = TextGray) },
-                        shape = RoundedCornerShape(12.dp),
-                        colors = OutlinedTextFieldDefaults.colors(
-                            unfocusedBorderColor = DividerGray,
-                            focusedBorderColor = RedPrimary,
-                            unfocusedContainerColor = Color.White,
-                            focusedContainerColor = Color.White,
-                            focusedTextColor = BlackTertiary,
-                            unfocusedTextColor = BlackTertiary
-                        ),
-                        singleLine = true
-                    )
-                }
-                Spacer(modifier = Modifier.height(16.dp))
-            } else {
-                // CAMPOS DE DOCENTE: AREA, GRADOS (MULTIPLE) Y SECCIONES (MULTIPLE)
-                // Selector de Cursos (Área) Múltiples/Simple (1 click)
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.9f)),
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                OutlinedTextField(
+                    value = grade,
+                    onValueChange = { newValue ->
+                        if (newValue.length <= 1 && (newValue.isEmpty() || newValue.all { it.isDigit() })) {
+                            grade = newValue
+                        }
+                    },
+                    modifier = Modifier.weight(1f),
+                    placeholder = { Text("Grado", color = TextGray) },
                     shape = RoundedCornerShape(12.dp),
-                    border = BorderStroke(1.dp, DividerGray)
-                ) {
-                    Column(modifier = Modifier.padding(12.dp)) {
-                        Text("Área de enseñanza (seleccione 1):", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = BlackTertiary)
-                        Spacer(modifier = Modifier.height(8.dp))
-                        
-                        val commonAreas = listOf("Matemática", "Comunicación", "Ciencias", "Historia", "Inglés", "Arte")
-                        
-                        @OptIn(ExperimentalLayoutApi::class)
-                        FlowRow(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(6.dp),
-                            verticalArrangement = Arrangement.spacedBy(6.dp)
-                        ) {
-                            commonAreas.forEach { cArea ->
-                                val isSelected = area == cArea
-                                Box(
-                                    modifier = Modifier
-                                        .clip(RoundedCornerShape(8.dp))
-                                        .background(if (isSelected) RedPrimary.copy(alpha = 0.15f) else Color.White)
-                                        .border(1.dp, if (isSelected) RedPrimary else DividerGray, RoundedCornerShape(8.dp))
-                                        .clickable {
-                                            area = cArea
-                                        }
-                                        .padding(horizontal = 12.dp, vertical = 8.dp)
-                                ) {
-                                    Text(cArea, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = if (isSelected) RedPrimary else BlackTertiary)
-                                }
+                    colors = OutlinedTextFieldDefaults.colors(
+                        unfocusedBorderColor = DividerGray,
+                        focusedBorderColor = RedPrimary,
+                        unfocusedContainerColor = Color.White,
+                        focusedContainerColor = Color.White,
+                        focusedTextColor = BlackTertiary,
+                        unfocusedTextColor = BlackTertiary
+                    ),
+                    singleLine = true
+                )
+                
+                OutlinedTextField(
+                    value = section,
+                    onValueChange = { newValue ->
+                        if (newValue.length <= 1) {
+                            val upper = newValue.uppercase()
+                            if (upper.isEmpty() || upper.all { it.isLetter() }) {
+                                section = upper
                             }
                         }
-                    }
-                }
-                Spacer(modifier = Modifier.height(16.dp))
-
-                // Selector de Grados Múltiples (1ro a 5to)
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.9f)),
+                    },
+                    modifier = Modifier.weight(1f),
+                    placeholder = { Text("Sección", color = TextGray) },
                     shape = RoundedCornerShape(12.dp),
-                    border = BorderStroke(1.dp, DividerGray)
-                ) {
-                    Column(modifier = Modifier.padding(12.dp)) {
-                        Text("Grados que enseña (seleccione 1 o más):", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = BlackTertiary)
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
-                        ) {
-                            listOf("1ro", "2do", "3ro", "4to", "5to").forEach { g ->
-                                val isSelected = selectedGrades.contains(g)
-                                Box(
-                                    modifier = Modifier
-                                        .weight(1f)
-                                        .height(36.dp)
-                                        .clip(RoundedCornerShape(8.dp))
-                                        .background(if (isSelected) RedPrimary.copy(alpha = 0.15f) else Color.White)
-                                        .border(1.dp, if (isSelected) RedPrimary else DividerGray, RoundedCornerShape(8.dp))
-                                        .clickable {
-                                            if (isSelected) selectedGrades.remove(g) else selectedGrades.add(g)
-                                        }
-                                        .wrapContentSize(Alignment.Center)
-                                ) {
-                                    Text(g, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = if (isSelected) RedPrimary else BlackTertiary)
-                                }
-                            }
-                        }
-                    }
-                }
-                Spacer(modifier = Modifier.height(16.dp))
-
-                // Selector de Secciones Múltiples (A, B, C, D)
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.9f)),
-                    shape = RoundedCornerShape(12.dp),
-                    border = BorderStroke(1.dp, DividerGray)
-                ) {
-                    Column(modifier = Modifier.padding(12.dp)) {
-                        Text("Secciones a su cargo (seleccione 1 o más):", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = BlackTertiary)
-                        Spacer(modifier = Modifier.height(8.dp))
-                        @OptIn(ExperimentalLayoutApi::class)
-                        FlowRow(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(6.dp),
-                            verticalArrangement = Arrangement.spacedBy(6.dp)
-                        ) {
-                            listOf("A", "B", "C", "D", "E", "F", "G", "H").forEach { s ->
-                                val isSelected = selectedSections.contains(s)
-                                Box(
-                                    modifier = Modifier
-                                        .height(36.dp)
-                                        .clip(RoundedCornerShape(8.dp))
-                                        .background(if (isSelected) RedPrimary.copy(alpha = 0.15f) else Color.White)
-                                        .border(1.dp, if (isSelected) RedPrimary else DividerGray, RoundedCornerShape(8.dp))
-                                        .clickable {
-                                            if (isSelected) selectedSections.remove(s) else selectedSections.add(s)
-                                        }
-                                        .padding(horizontal = 24.dp)
-                                        .wrapContentSize(Alignment.Center)
-                                ) {
-                                    Text(s, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = if (isSelected) RedPrimary else BlackTertiary)
-                                }
-                            }
-                        }
-                    }
-                }
-                Spacer(modifier = Modifier.height(16.dp))
+                    colors = OutlinedTextFieldDefaults.colors(
+                        unfocusedBorderColor = DividerGray,
+                        focusedBorderColor = RedPrimary,
+                        unfocusedContainerColor = Color.White,
+                        focusedContainerColor = Color.White,
+                        focusedTextColor = BlackTertiary,
+                        unfocusedTextColor = BlackTertiary
+                    ),
+                    singleLine = true
+                )
             }
+            Spacer(modifier = Modifier.height(16.dp))
 
             OutlinedTextField(
                 value = email,
@@ -389,15 +224,7 @@ fun RegisterScreen(
 
             Spacer(modifier = Modifier.height(32.dp))
             RevealButton(
-                onClick = { 
-                    if (role == "student") {
-                        authViewModel.signUpWithEmail(email, password, username, studentName, "student", grade, section)
-                    } else {
-                        val gStr = selectedGrades.sorted().joinToString(",")
-                        val sStr = selectedSections.sorted().joinToString(",")
-                        authViewModel.signUpWithEmail(email, password, username, studentName, "teacher", gStr, sStr, area)
-                    }
-                },
+                onClick = { authViewModel.signUpWithEmail(email, password, username, studentName, grade, section) },
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(50.dp),

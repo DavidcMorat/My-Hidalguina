@@ -55,9 +55,7 @@ abstract class ChatDatabase : RoomDatabase() {
                     context.applicationContext,
                     ChatDatabase::class.java,
                     "chat_database"
-                )
-                .fallbackToDestructiveMigration()
-                .build()
+                ).build()
                 INSTANCE = instance
                 instance
             }

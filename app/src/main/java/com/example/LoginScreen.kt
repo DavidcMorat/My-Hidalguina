@@ -44,6 +44,7 @@ fun LoginScreen(
     var password by remember { mutableStateOf("") }
     var passwordVisible by remember { mutableStateOf(false) }
     var rememberMe by remember { mutableStateOf(false) }
+    var resetMessage by remember { mutableStateOf<String?>(null) }
 
     val context = LocalContext.current
     val authState by authViewModel.authState.collectAsState()
@@ -162,7 +163,24 @@ fun LoginScreen(
                     text = "¿Olvidaste tu contraseña?",
                     color = RedPrimary,
                     fontSize = 14.sp,
-                    modifier = Modifier.clickable { /* TODO */ }
+                    modifier = Modifier.clickable {
+                        authViewModel.sendPasswordResetEmail(email) { msg ->
+                            resetMessage = msg
+                        }
+                    }
+                )
+            }
+
+            if (resetMessage != null) {
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = resetMessage!!,
+                    color = Color.White,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(Color(0xFF388E3C), RoundedCornerShape(8.dp))
+                        .padding(8.dp),
+                    textAlign = TextAlign.Center
                 )
             }
 

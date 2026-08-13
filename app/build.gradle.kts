@@ -17,8 +17,8 @@ android {
     applicationId = "com.triplebaka.myHidalguina.MF"
     minSdk = 24
     targetSdk = 36
-    versionCode = 5
-    versionName = "0.0.5"
+    versionCode = 4
+    versionName = "0.0.4"
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
   }
@@ -124,12 +124,12 @@ dependencies {
   implementation(libs.androidx.navigation.compose)
   implementation(libs.androidx.room.ktx)
   implementation(libs.androidx.room.runtime)
-  implementation(libs.coil.compose)
-  implementation(libs.coil.gif)
+  // implementation(libs.coil.compose)
   implementation(libs.converter.moshi)
   implementation(libs.firebase.ai)
   // Uncomment to use Firestore:
   implementation(libs.firebase.firestore)
+  implementation(libs.firebase.database)
 
   // Firebase Auth with Google Sign-In requires all of the following to be uncommented together.
   // If you are using Firebase Auth with other providers (e.g. Email/Password), you may only need
@@ -164,8 +164,4 @@ dependencies {
   debugImplementation(libs.androidx.compose.ui.tooling)
   "ksp"(libs.androidx.room.compiler)
   "ksp"(libs.moshi.kotlin.codegen)
-  implementation(libs.supabase.postgrest)
-  implementation(libs.supabase.realtime)
-  implementation(libs.ktor.client.android)
-
 }
