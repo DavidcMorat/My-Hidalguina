@@ -5,12 +5,9 @@ import android.content.Context
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.google.firebase.auth.FirebaseAuth
-import com.google.firebase.auth.UserProfileChangeRequest
 import com.google.firebase.firestore.FirebaseFirestore
-import com.google.firebase.firestore.SetOptions
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 
@@ -22,21 +19,24 @@ sealed class AuthState {
 }
 
 class AuthViewModel(application: Application) : AndroidViewModel(application) {
-    private val auth = FirebaseAuth.getInstance()
-    private val db = FirebaseFirestore.getInstance()
+    private val auth by lazy { FirebaseAuth.getInstance() }
+    private val db by lazy { FirebaseFirestore.getInstance() }
 
     private val _authState = MutableStateFlow<AuthState>(AuthState.Idle)
-    val authState: StateFlow<AuthState> = _authState.asStateFlow()
+    val authState: StateFlow<AuthState> = _authState
+
+    val currentUser
+        get() = try { auth.currentUser } catch (e: Exception) { null }
 
     fun signInWithEmail(email: String, pass: String) {
         if (email.isBlank() || pass.isBlank()) {
-            _authState.value = AuthState.Error("Ingresa tu correo electrónico y contraseña")
+            _authState.value = AuthState.Error("Correo y contraseña son obligatorios")
             return
         }
         viewModelScope.launch {
             _authState.value = AuthState.Loading
             try {
-                val result = auth.signInWithEmailAndPassword(email, pass).await()
+                auth.signInWithEmailAndPassword(email, pass).await()
                 _authState.value = AuthState.Success
             } catch (e: Exception) {
                 _authState.value = AuthState.Error(e.message ?: "Error de inicio de sesión")
@@ -64,47 +64,46 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
             _authState.value = AuthState.Error("Todos los campos son obligatorios")
             return
         }
+
         viewModelScope.launch {
             _authState.value = AuthState.Loading
             try {
-                val result = auth.createUserWithEmailAndPassword(email, pass).await()
-                val user = result.user
+                val authResult = auth.createUserWithEmailAndPassword(email, pass).await()
+                val user = authResult.user
                 if (user != null) {
-                    val profileUpdates = UserProfileChangeRequest.Builder()
-                        .setDisplayName(username)
-                        .build()
+                    val profileUpdates = com.google.firebase.auth.userProfileChangeRequest {
+                        displayName = username
+                    }
                     user.updateProfile(profileUpdates).await()
-                    
-                    // Send verification email
+
                     try {
                         user.sendEmailVerification().await()
                     } catch (e: Exception) {
                         e.printStackTrace()
                     }
 
-                    // Save locally in SharedPreferences as backup
                     val sharedPrefs = getApplication<Application>().getSharedPreferences("user_profile_prefs", Context.MODE_PRIVATE)
                     sharedPrefs.edit().apply {
-                        putString("studentName_backup_${user.uid}", studentName)
+                        putString("username_backup_${user.uid}", username)
+                        putString("student_name_backup_${user.uid}", studentName)
                         putString("grade_backup_${user.uid}", grade)
                         putString("section_backup_${user.uid}", section)
-                        putString("displayName_backup_${user.uid}", username)
                         apply()
                     }
 
-                    // Save to Firestore
                     val userData = hashMapOf(
                         "uid" to user.uid,
+                        "email" to email,
                         "displayName" to username,
                         "studentName" to studentName,
                         "grade" to grade,
-                        "section" to section,
-                        "email" to email
+                        "section" to section
                     )
+
                     try {
                         db.collection("users").document(user.uid).set(userData).await()
                     } catch (e: Exception) {
-                        // Ignore Firestore error during signup
+                        e.printStackTrace()
                     }
                 }
                 _authState.value = AuthState.Success
@@ -114,51 +113,16 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun updateProfile(displayName: String, studentName: String, grade: String, section: String) {
-        if (displayName.isBlank() || studentName.isBlank() || grade.isBlank() || section.isBlank()) {
-            _authState.value = AuthState.Error("Todos los campos son obligatorios")
-            return
+    fun signOut() {
+        try {
+            auth.signOut()
+        } catch (e: Exception) {
+            e.printStackTrace()
         }
-        viewModelScope.launch {
-            _authState.value = AuthState.Loading
-            try {
-                val user = auth.currentUser
-                if (user != null) {
-                    val profileUpdates = UserProfileChangeRequest.Builder()
-                        .setDisplayName(displayName)
-                        .build()
-                    user.updateProfile(profileUpdates).await()
-                    
-                    // Save locally in SharedPreferences as backup
-                    val sharedPrefs = getApplication<Application>().getSharedPreferences("user_profile_prefs", Context.MODE_PRIVATE)
-                    sharedPrefs.edit().apply {
-                        putString("studentName_backup_${user.uid}", studentName)
-                        putString("grade_backup_${user.uid}", grade)
-                        putString("section_backup_${user.uid}", section)
-                        putString("displayName_backup_${user.uid}", displayName)
-                        apply()
-                    }
-
-                    // Update in Firestore
-                    val userData = hashMapOf(
-                        "displayName" to displayName,
-                        "studentName" to studentName,
-                        "grade" to grade,
-                        "section" to section
-                    )
-                    db.collection("users").document(user.uid).set(userData, SetOptions.merge()).await()
-                    
-                    _authState.value = AuthState.Success
-                } else {
-                    _authState.value = AuthState.Error("Usuario no autenticado")
-                }
-            } catch (e: Exception) {
-                _authState.value = AuthState.Error(e.message ?: "Error al actualizar el perfil")
-            }
-        }
+        _authState.value = AuthState.Idle
     }
 
-    fun clearAuthState() {
+    fun resetState() {
         _authState.value = AuthState.Idle
     }
 }

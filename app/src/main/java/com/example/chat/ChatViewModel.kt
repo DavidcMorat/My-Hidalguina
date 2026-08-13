@@ -27,18 +27,17 @@ data class ChatUserWithStatus(
 )
 
 class ChatViewModel(application: Application) : AndroidViewModel(application) {
-    private val firestore = FirebaseFirestore.getInstance()
-    private val auth = FirebaseAuth.getInstance()
+    private val firestore by lazy { FirebaseFirestore.getInstance() }
+    private val auth by lazy { FirebaseAuth.getInstance() }
     private val chatDao = ChatDatabase.getDatabase(application).chatDao()
 
-    val myUid = auth.currentUser?.uid ?: ""
+    val myUid: String
+        get() = try { auth.currentUser?.uid ?: "" } catch (e: Exception) { "" }
 
-    // Realtime Database reference and listener for active chat session
     private var realtimeDbRef: DatabaseReference? = null
     private var childEventListener: ChildEventListener? = null
     private var isSessionActive = false
 
-    // State for user search
     private val _searchResults = MutableStateFlow<List<ChatUser>>(emptyList())
     val searchResults: StateFlow<List<ChatUser>> = _searchResults
 
@@ -48,10 +47,8 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     private val _isSearching = MutableStateFlow(false)
     val isSearching: StateFlow<Boolean> = _isSearching
 
-    // Unread status triggers
     private val _unreadTrigger = MutableStateFlow(0)
 
-    // Local chats list
     val localUsers = chatDao.getAllUsers()
 
     val localUsersWithStatus = combine(
@@ -79,12 +76,11 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     init {
-        // Ensure local self user is present
         if (myUid.isNotEmpty()) {
             viewModelScope.launch {
                 val existing = withContext(Dispatchers.IO) { chatDao.getUser(myUid) }
                 if (existing == null) {
-                    val displayName = auth.currentUser?.displayName ?: "Mi Chat (Local)"
+                    val displayName = try { auth.currentUser?.displayName ?: "Mi Chat (Local)" } catch (e: Exception) { "Mi Chat" }
                     val selfUser = ChatUser(myUid, displayName)
                     withContext(Dispatchers.IO) { chatDao.insertUser(selfUser) }
                 }
@@ -92,17 +88,11 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    /**
-     * Smart Activation System:
-     * Called when user enters the Chat section/screen.
-     * Starts Realtime Database listener and fetches classroom users from Firestore.
-     */
     fun activateChatSession() {
         if (isSessionActive || myUid.isEmpty()) return
         isSessionActive = true
 
         try {
-            // Connect Realtime Database socket only when in chat section
             FirebaseDatabase.getInstance().goOnline()
             startListeningToRealtimeDbMessages()
         } catch (e: Exception) {
@@ -112,11 +102,6 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         loadClassroomUsers()
     }
 
-    /**
-     * Smart Deactivation System:
-     * Called when user leaves the Chat section/screen.
-     * Stops Realtime Database listener and disconnects RTDB socket.
-     */
     fun deactivateChatSession() {
         if (!isSessionActive) return
         isSessionActive = false
@@ -124,7 +109,6 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         stopListeningToRealtimeDbMessages()
 
         try {
-            // Disconnect Realtime Database socket while navigating other app sections
             FirebaseDatabase.getInstance().goOffline()
         } catch (e: Exception) {
             e.printStackTrace()
@@ -178,7 +162,6 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         val timestamp = snapshot.child("timestamp").getValue(Long::class.java) ?: System.currentTimeMillis()
 
         viewModelScope.launch {
-            // Fetch sender profile info from Firestore if not in Room DB
             var user = withContext(Dispatchers.IO) { chatDao.getUser(senderId) }
             if (user == null) {
                 try {
@@ -219,7 +202,6 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 _unreadTrigger.value += 1
             }
 
-            // Remove processed message from Realtime Database node
             try {
                 snapshot.ref.removeValue()
             } catch (e: Exception) {
@@ -308,11 +290,9 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
         )
 
         viewModelScope.launch {
-            // Save locally in Room DB
             withContext(Dispatchers.IO) { chatDao.insertMessage(chatMessage) }
 
             if (receiverId != myUid) {
-                // Send via Realtime Database
                 val rtdbMessage = hashMapOf(
                     "id" to messageId,
                     "senderId" to myUid,

@@ -1,164 +1,139 @@
 package com.example
 
-import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.Canvas
+import android.widget.Toast
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.material.icons.filled.Email
 import androidx.compose.material.icons.filled.Lock
-import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.*
-import androidx.lifecycle.viewmodel.compose.viewModel
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.ui.theme.*
-import com.example.ui.components.RevealButton
+import com.example.ui.theme.DarkBackground
+import com.example.ui.theme.DarkSurface
+import com.example.ui.theme.DarkSurfaceVariant
+import com.example.ui.theme.GoldSecondary
+import com.example.ui.theme.RedPrimary
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LoginScreen(
-    modifier: Modifier = Modifier,
-    authViewModel: AuthViewModel = viewModel(),
-    onLoginSuccess: () -> Unit = {},
-    onNavigateToRegister: () -> Unit = {}
+    authViewModel: AuthViewModel,
+    onLoginSuccess: () -> Unit,
+    onNavigateToRegister: () -> Unit
 ) {
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var passwordVisible by remember { mutableStateOf(false) }
-    var rememberMe by remember { mutableStateOf(false) }
     var resetMessage by remember { mutableStateOf<String?>(null) }
 
     val context = LocalContext.current
     val authState by authViewModel.authState.collectAsState()
 
     LaunchedEffect(authState) {
-        if (authState is AuthState.Success) {
-            onLoginSuccess()
+        when (authState) {
+            is AuthState.Success -> {
+                onLoginSuccess()
+                authViewModel.resetState()
+            }
+            is AuthState.Error -> {
+                Toast.makeText(context, (authState as AuthState.Error).message, Toast.LENGTH_LONG).show()
+                authViewModel.resetState()
+            }
+            else -> {}
         }
     }
 
-    Box(modifier = modifier.fillMaxSize().background(BackgroundGray)) {
-        // Top Decoration
-        TopDecoration(modifier = Modifier.align(Alignment.TopCenter))
-        // Bottom Decoration
-        BottomDecoration(modifier = Modifier.align(Alignment.BottomCenter))
-
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(DarkBackground)
+            .padding(24.dp),
+        contentAlignment = Alignment.Center
+    ) {
         Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(horizontal = 24.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
+            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier.fillMaxWidth()
         ) {
-            Spacer(modifier = Modifier.height(48.dp))
-            
             Text(
-                text = "Bienvenido",
-                fontSize = 28.sp,
+                text = "My Hidalguina",
+                fontSize = 32.sp,
                 fontWeight = FontWeight.Bold,
-                color = Color.White
+                color = GoldSecondary
             )
-            Spacer(modifier = Modifier.height(8.dp))
             Text(
-                text = "Inicia sesión para continuar\ntu aprendizaje.",
-                fontSize = 14.sp,
-                color = Color.White,
-                textAlign = TextAlign.Center
+                text = "Portal Escolar",
+                fontSize = 16.sp,
+                color = Color.LightGray,
+                modifier = Modifier.padding(bottom = 32.dp)
             )
-            
-            if (authState is AuthState.Error) {
-                Spacer(modifier = Modifier.height(16.dp))
-                Text(
-                    text = (authState as AuthState.Error).message,
-                    color = Color.White,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .background(RedPrimary, RoundedCornerShape(8.dp))
-                        .padding(8.dp),
-                    textAlign = TextAlign.Center
-                )
-            }
 
-            Spacer(modifier = Modifier.weight(1f))
-
+            // Email field
             OutlinedTextField(
                 value = email,
                 onValueChange = { email = it },
+                label = { Text("Correo Electrónico") },
+                leadingIcon = { Icon(Icons.Default.Email, contentDescription = null, tint = RedPrimary) },
+                singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
-                placeholder = { Text("Correo electrónico", color = TextGray) },
-                leadingIcon = { Icon(Icons.Filled.Person, contentDescription = null, tint = TextGray) },
-                shape = RoundedCornerShape(12.dp),
                 colors = OutlinedTextFieldDefaults.colors(
-                    unfocusedBorderColor = DividerGray,
+                    focusedContainerColor = DarkSurface,
+                    unfocusedContainerColor = DarkSurface,
                     focusedBorderColor = RedPrimary,
-                    unfocusedContainerColor = Color.White,
-                    focusedContainerColor = Color.White,
-                    focusedTextColor = BlackTertiary,
-                    unfocusedTextColor = BlackTertiary
+                    unfocusedBorderColor = DarkSurfaceVariant,
+                    focusedTextColor = Color.White,
+                    unfocusedTextColor = Color.White
                 ),
-                singleLine = true
+                shape = RoundedCornerShape(12.dp)
             )
+
             Spacer(modifier = Modifier.height(16.dp))
 
+            // Password field
             OutlinedTextField(
                 value = password,
                 onValueChange = { password = it },
-                modifier = Modifier.fillMaxWidth(),
-                placeholder = { Text("Contraseña", color = TextGray) },
-                leadingIcon = { Icon(Icons.Filled.Lock, contentDescription = null, tint = TextGray) },
+                label = { Text("Contraseña") },
+                leadingIcon = { Icon(Icons.Default.Lock, contentDescription = null, tint = RedPrimary) },
                 trailingIcon = {
+                    val image = if (passwordVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff
                     IconButton(onClick = { passwordVisible = !passwordVisible }) {
-                        Icon(
-                            imageVector = if (passwordVisible) Icons.Filled.Visibility else Icons.Filled.VisibilityOff,
-                            contentDescription = if (passwordVisible) "Ocultar contraseña" else "Mostrar contraseña",
-                            tint = TextGray
-                        )
+                        Icon(imageVector = image, contentDescription = null, tint = Color.Gray)
                     }
                 },
-                shape = RoundedCornerShape(12.dp),
-                colors = OutlinedTextFieldDefaults.colors(
-                    unfocusedBorderColor = DividerGray,
-                    focusedBorderColor = RedPrimary,
-                    unfocusedContainerColor = Color.White,
-                    focusedContainerColor = Color.White,
-                    focusedTextColor = BlackTertiary,
-                    unfocusedTextColor = BlackTertiary
-                ),
+                visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
                 singleLine = true,
-                visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation()
+                modifier = Modifier.fillMaxWidth(),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedContainerColor = DarkSurface,
+                    unfocusedContainerColor = DarkSurface,
+                    focusedBorderColor = RedPrimary,
+                    unfocusedBorderColor = DarkSurfaceVariant,
+                    focusedTextColor = Color.White,
+                    unfocusedTextColor = Color.White
+                ),
+                shape = RoundedCornerShape(12.dp)
             )
 
             Spacer(modifier = Modifier.height(12.dp))
+
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
+                horizontalArrangement = Arrangement.End
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Checkbox(
-                        checked = rememberMe,
-                        onCheckedChange = { rememberMe = it },
-                        colors = CheckboxDefaults.colors(checkedColor = RedPrimary, uncheckedColor = TextGray)
-                    )
-                    Text("Recordarme", color = TextGray, fontSize = 14.sp)
-                }
                 Text(
                     text = "¿Olvidaste tu contraseña?",
                     color = RedPrimary,
@@ -185,115 +160,34 @@ fun LoginScreen(
             }
 
             Spacer(modifier = Modifier.height(24.dp))
-            RevealButton(
+
+            Button(
                 onClick = { authViewModel.signInWithEmail(email, password) },
+                enabled = authState !is AuthState.Loading,
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(50.dp),
-                backgroundColor = RedPrimary,
-                revealColor = Color(0xFFFF5252),
-                contentColor = Color.White
+                colors = ButtonDefaults.buttonColors(containerColor = RedPrimary),
+                shape = RoundedCornerShape(12.dp)
             ) {
-                Text("Iniciar sesión", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.White)
-                Spacer(modifier = Modifier.width(8.dp))
-                Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null, modifier = Modifier.size(20.dp), tint = Color.White)
+                if (authState is AuthState.Loading) {
+                    CircularProgressIndicator(color = Color.White, modifier = Modifier.size(24.dp))
+                } else {
+                    Text("Iniciar Sesión", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                }
             }
 
-            if (authState is AuthState.Error) {
-                Spacer(modifier = Modifier.height(16.dp))
-                Text(
-                    text = (authState as AuthState.Error).message,
-                    color = Color.White,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .background(RedPrimary, RoundedCornerShape(8.dp))
-                        .padding(8.dp),
-                    textAlign = TextAlign.Center
-                )
-            }
+            Spacer(modifier = Modifier.height(24.dp))
 
-            Spacer(modifier = Modifier.weight(1f))
-
-            Row(
-                modifier = Modifier.padding(bottom = 60.dp),
-                horizontalArrangement = Arrangement.Center
-            ) {
-                Text("¿No tienes una cuenta? ", color = BlackTertiary, fontWeight = FontWeight.SemiBold)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("¿No tienes una cuenta? ", color = Color.Gray)
                 Text(
-                    "Regístrate",
-                    color = RedPrimary,
+                    text = "Regístrate",
+                    color = GoldSecondary,
                     fontWeight = FontWeight.Bold,
                     modifier = Modifier.clickable { onNavigateToRegister() }
                 )
             }
         }
-    }
-}
-
-@Composable
-fun TopDecoration(modifier: Modifier = Modifier) {
-    Canvas(modifier = modifier.fillMaxWidth().height(220.dp)) {
-        val w = size.width
-        val h = size.height
-
-        val redPath = Path().apply {
-            moveTo(0f, 0f)
-            lineTo(w, 0f)
-            lineTo(w, h * 0.7f)
-            quadraticTo(w * 0.5f, h * 0.9f, 0f, h * 0.3f)
-            close()
-        }
-        drawPath(redPath, RedPrimary)
-        
-        val yellowPath = Path().apply {
-            moveTo(0f, h * 0.3f)
-            quadraticTo(w * 0.5f, h * 0.9f, w, h * 0.7f)
-            lineTo(w, h * 0.85f)
-            quadraticTo(w * 0.5f, h * 1.05f, 0f, h * 0.45f)
-            close()
-        }
-        drawPath(yellowPath, YellowSecondary)
-
-        val blackPath = Path().apply {
-            moveTo(0f, 0f)
-            lineTo(w * 0.4f, 0f)
-            quadraticTo(w * 0.2f, h * 0.3f, 0f, h * 0.6f)
-            close()
-        }
-        drawPath(blackPath, BlackTertiary)
-    }
-}
-
-@Composable
-fun BottomDecoration(modifier: Modifier = Modifier) {
-    Canvas(modifier = modifier.fillMaxWidth().height(100.dp)) {
-        val w = size.width
-        val h = size.height
-        
-        val yellowPath = Path().apply {
-            moveTo(0f, h)
-            lineTo(w, h)
-            lineTo(w, h * 0.4f)
-            quadraticTo(w * 0.5f, 0f, 0f, h * 0.6f)
-            close()
-        }
-        drawPath(yellowPath, YellowSecondary)
-        
-        val redPath = Path().apply {
-            moveTo(w * 0.4f, h)
-            lineTo(w, h)
-            lineTo(w, h * 0.4f)
-            quadraticTo(w * 0.7f, h * 0.2f, w * 0.4f, h)
-            close()
-        }
-        drawPath(redPath, RedPrimary)
-
-        val blackPath = Path().apply {
-            moveTo(0f, h)
-            lineTo(w * 0.6f, h)
-            quadraticTo(w * 0.3f, h * 0.7f, 0f, h * 0.6f)
-            close()
-        }
-        drawPath(blackPath, BlackTertiary)
     }
 }
