@@ -36,8 +36,7 @@ jobs:
             if [ -n "${{ secrets.GOOGLE_SERVICES_JSON }}" ]; then
               echo "${{ secrets.GOOGLE_SERVICES_JSON }}" > app/google-services.json
             else
-              cat << 'EOF' > app/google-services.json
-              {
+              printf '%s\n' '{
                 "project_info": {
                   "project_number": "919509499769",
                   "firebase_url": "https://my-hidalguina-default-rtdb.firebaseio.com",
@@ -66,8 +65,7 @@ jobs:
                   }
                 ],
                 "configuration_version": "1"
-              }
-              EOF
+              }' > app/google-services.json
             fi
           fi
 
