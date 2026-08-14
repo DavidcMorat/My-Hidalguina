@@ -94,17 +94,46 @@ interface StudyPlanDao {
     fun clearTutorChat(userId: String): Int
 }
 
+@Entity(tableName = "local_announcements")
+data class LocalAnnouncement(
+    @PrimaryKey val id: String,
+    val title: String,
+    val content: String,
+    val teacherId: String,
+    val teacherName: String,
+    val subject: String,
+    val targetType: String,
+    val grade: String,
+    val section: String,
+    val priority: String,
+    val createdAt: Long
+)
+
+@Dao
+interface LocalAnnouncementDao {
+    @Query("SELECT * FROM local_announcements ORDER BY createdAt DESC")
+    fun getAllLocalAnnouncements(): Flow<List<LocalAnnouncement>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    fun insertAnnouncements(announcements: List<LocalAnnouncement>)
+
+    @Query("DELETE FROM local_announcements")
+    fun clearAll(): Int
+}
+
 @Database(
     entities = [
         StudyPlanEntity::class,
         StudyTopicEntity::class,
-        TutorChatMessageEntity::class
+        TutorChatMessageEntity::class,
+        LocalAnnouncement::class
     ],
-    version = 1,
+    version = 2,
     exportSchema = false
 )
 abstract class StudyDatabase : RoomDatabase() {
     abstract fun studyPlanDao(): StudyPlanDao
+    abstract fun localAnnouncementDao(): LocalAnnouncementDao
 
     companion object {
         @Volatile

@@ -55,11 +55,27 @@ fun LoginScreen(
         }
     }
 
-    Box(modifier = modifier.fillMaxSize().background(BackgroundGray)) {
+    Box(modifier = modifier.fillMaxSize().background(ThemeColors.background)) {
         // Top Decoration
         TopDecoration(modifier = Modifier.align(Alignment.TopCenter))
         // Bottom Decoration
         BottomDecoration(modifier = Modifier.align(Alignment.BottomCenter))
+
+        // Dark Theme Toggle Button at top end
+        IconButton(
+            onClick = { ThemeState.toggleTheme() },
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .padding(top = 16.dp, end = 16.dp)
+                .size(40.dp)
+                .background(ThemeColors.cardSurface, RoundedCornerShape(20.dp))
+        ) {
+            Icon(
+                painter = painterResource(id = if (ThemeState.isDarkTheme) android.R.drawable.ic_menu_day else android.R.drawable.ic_menu_compass),
+                contentDescription = "Cambiar Modo Oscuro",
+                tint = ThemeColors.primary
+            )
+        }
 
         Column(
             modifier = Modifier
@@ -83,13 +99,13 @@ fun LoginScreen(
                 text = "Bienvenido",
                 fontSize = 28.sp,
                 fontWeight = FontWeight.Bold,
-                color = Color.Black
+                color = ThemeColors.textPrimary
             )
             Spacer(modifier = Modifier.height(6.dp))
             Text(
                 text = "Inicia sesión para continuar\ntu aprendizaje.",
                 fontSize = 14.sp,
-                color = BlackTertiary,
+                color = ThemeColors.textSecondary,
                 textAlign = TextAlign.Center
             )
             
@@ -100,7 +116,7 @@ fun LoginScreen(
                     color = Color.White,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .background(RedPrimary, RoundedCornerShape(8.dp))
+                        .background(ThemeColors.primary, RoundedCornerShape(8.dp))
                         .padding(8.dp),
                     textAlign = TextAlign.Center
                 )
@@ -112,16 +128,18 @@ fun LoginScreen(
                 value = email,
                 onValueChange = { email = it },
                 modifier = Modifier.fillMaxWidth(),
-                placeholder = { Text("Correo electrónico", color = TextGray) },
-                leadingIcon = { Icon(Icons.Filled.Person, contentDescription = null, tint = TextGray) },
+                placeholder = { Text("Correo electrónico", color = ThemeColors.textSecondary) },
+                leadingIcon = { Icon(Icons.Filled.Person, contentDescription = null, tint = ThemeColors.textSecondary) },
                 shape = RoundedCornerShape(12.dp),
                 colors = OutlinedTextFieldDefaults.colors(
-                    unfocusedBorderColor = DividerGray,
-                    focusedBorderColor = RedPrimary,
-                    unfocusedContainerColor = Color.White,
-                    focusedContainerColor = Color.White,
-                    focusedTextColor = BlackTertiary,
-                    unfocusedTextColor = BlackTertiary
+                    unfocusedBorderColor = ThemeColors.divider,
+                    focusedBorderColor = ThemeColors.primary,
+                    unfocusedContainerColor = ThemeColors.inputBackground,
+                    focusedContainerColor = ThemeColors.inputBackground,
+                    focusedTextColor = ThemeColors.inputTextColor,
+                    unfocusedTextColor = ThemeColors.inputTextColor,
+                    focusedLabelColor = ThemeColors.primary,
+                    unfocusedLabelColor = ThemeColors.textSecondary
                 ),
                 singleLine = true
             )
@@ -131,25 +149,27 @@ fun LoginScreen(
                 value = password,
                 onValueChange = { password = it },
                 modifier = Modifier.fillMaxWidth(),
-                placeholder = { Text("Contraseña", color = TextGray) },
-                leadingIcon = { Icon(Icons.Filled.Lock, contentDescription = null, tint = TextGray) },
+                placeholder = { Text("Contraseña", color = ThemeColors.textSecondary) },
+                leadingIcon = { Icon(Icons.Filled.Lock, contentDescription = null, tint = ThemeColors.textSecondary) },
                 trailingIcon = {
                     IconButton(onClick = { passwordVisible = !passwordVisible }) {
                         Icon(
                             imageVector = if (passwordVisible) Icons.Filled.Visibility else Icons.Filled.VisibilityOff,
                             contentDescription = if (passwordVisible) "Ocultar contraseña" else "Mostrar contraseña",
-                            tint = TextGray
+                            tint = ThemeColors.textSecondary
                         )
                     }
                 },
                 shape = RoundedCornerShape(12.dp),
                 colors = OutlinedTextFieldDefaults.colors(
-                    unfocusedBorderColor = DividerGray,
-                    focusedBorderColor = RedPrimary,
-                    unfocusedContainerColor = Color.White,
-                    focusedContainerColor = Color.White,
-                    focusedTextColor = BlackTertiary,
-                    unfocusedTextColor = BlackTertiary
+                    unfocusedBorderColor = ThemeColors.divider,
+                    focusedBorderColor = ThemeColors.primary,
+                    unfocusedContainerColor = ThemeColors.inputBackground,
+                    focusedContainerColor = ThemeColors.inputBackground,
+                    focusedTextColor = ThemeColors.inputTextColor,
+                    unfocusedTextColor = ThemeColors.inputTextColor,
+                    focusedLabelColor = ThemeColors.primary,
+                    unfocusedLabelColor = ThemeColors.textSecondary
                 ),
                 singleLine = true,
                 visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation()
@@ -165,13 +185,13 @@ fun LoginScreen(
                     Checkbox(
                         checked = rememberMe,
                         onCheckedChange = { rememberMe = it },
-                        colors = CheckboxDefaults.colors(checkedColor = RedPrimary, uncheckedColor = TextGray)
+                        colors = CheckboxDefaults.colors(checkedColor = ThemeColors.primary, uncheckedColor = ThemeColors.textSecondary)
                     )
-                    Text("Recordarme", color = TextGray, fontSize = 14.sp)
+                    Text("Recordarme", color = ThemeColors.textSecondary, fontSize = 14.sp)
                 }
                 Text(
                     text = "¿Olvidaste tu contraseña?",
-                    color = RedPrimary,
+                    color = ThemeColors.primary,
                     fontSize = 14.sp,
                     modifier = Modifier.clickable { /* TODO */ }
                 )
@@ -183,13 +203,13 @@ fun LoginScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(50.dp),
-                backgroundColor = RedPrimary,
-                revealColor = Color(0xFFFF5252),
-                contentColor = Color.White
+                backgroundColor = ThemeColors.primary,
+                revealColor = ThemeColors.primaryAccent,
+                contentColor = if (ThemeState.isDarkTheme) Color.Black else Color.White
             ) {
-                Text("Iniciar sesión", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                Text("Iniciar sesión", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = if (ThemeState.isDarkTheme) Color.Black else Color.White)
                 Spacer(modifier = Modifier.width(8.dp))
-                Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null, modifier = Modifier.size(20.dp), tint = Color.White)
+                Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null, modifier = Modifier.size(20.dp), tint = if (ThemeState.isDarkTheme) Color.Black else Color.White)
             }
 
             if (authState is AuthState.Error) {
@@ -199,7 +219,7 @@ fun LoginScreen(
                     color = Color.White,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .background(RedPrimary, RoundedCornerShape(8.dp))
+                        .background(ThemeColors.primary, RoundedCornerShape(8.dp))
                         .padding(8.dp),
                     textAlign = TextAlign.Center
                 )
@@ -211,10 +231,10 @@ fun LoginScreen(
                 modifier = Modifier.padding(bottom = 60.dp),
                 horizontalArrangement = Arrangement.Center
             ) {
-                Text("¿No tienes una cuenta? ", color = BlackTertiary, fontWeight = FontWeight.SemiBold)
+                Text("¿No tienes una cuenta? ", color = ThemeColors.textSecondary, fontWeight = FontWeight.SemiBold)
                 Text(
                     "Regístrate",
-                    color = RedPrimary,
+                    color = ThemeColors.primary,
                     fontWeight = FontWeight.Bold,
                     modifier = Modifier.clickable { onNavigateToRegister() }
                 )
@@ -225,18 +245,22 @@ fun LoginScreen(
 
 @Composable
 fun TopDecoration(modifier: Modifier = Modifier) {
+    val primaryColor = ThemeColors.primary
+    val secondaryColor = YellowSecondary
+    val tertiaryColor = if (ThemeState.isDarkTheme) Color(0xFF1F242C) else BlackTertiary
+
     Canvas(modifier = modifier.fillMaxWidth().height(220.dp)) {
         val w = size.width
         val h = size.height
 
-        val redPath = Path().apply {
+        val primaryPath = Path().apply {
             moveTo(0f, 0f)
             lineTo(w, 0f)
             lineTo(w, h * 0.7f)
             quadraticTo(w * 0.5f, h * 0.9f, 0f, h * 0.3f)
             close()
         }
-        drawPath(redPath, RedPrimary)
+        drawPath(primaryPath, primaryColor)
         
         val yellowPath = Path().apply {
             moveTo(0f, h * 0.3f)
@@ -245,7 +269,7 @@ fun TopDecoration(modifier: Modifier = Modifier) {
             quadraticTo(w * 0.5f, h * 1.05f, 0f, h * 0.45f)
             close()
         }
-        drawPath(yellowPath, YellowSecondary)
+        drawPath(yellowPath, secondaryColor)
 
         val blackPath = Path().apply {
             moveTo(0f, 0f)
@@ -253,12 +277,16 @@ fun TopDecoration(modifier: Modifier = Modifier) {
             quadraticTo(w * 0.2f, h * 0.3f, 0f, h * 0.6f)
             close()
         }
-        drawPath(blackPath, BlackTertiary)
+        drawPath(blackPath, tertiaryColor)
     }
 }
 
 @Composable
 fun BottomDecoration(modifier: Modifier = Modifier) {
+    val primaryColor = ThemeColors.primary
+    val secondaryColor = YellowSecondary
+    val tertiaryColor = if (ThemeState.isDarkTheme) Color(0xFF1F242C) else BlackTertiary
+
     Canvas(modifier = modifier.fillMaxWidth().height(100.dp)) {
         val w = size.width
         val h = size.height
@@ -270,16 +298,16 @@ fun BottomDecoration(modifier: Modifier = Modifier) {
             quadraticTo(w * 0.5f, 0f, 0f, h * 0.6f)
             close()
         }
-        drawPath(yellowPath, YellowSecondary)
+        drawPath(yellowPath, secondaryColor)
         
-        val redPath = Path().apply {
+        val primaryPath = Path().apply {
             moveTo(w * 0.4f, h)
             lineTo(w, h)
             lineTo(w, h * 0.4f)
             quadraticTo(w * 0.7f, h * 0.2f, w * 0.4f, h)
             close()
         }
-        drawPath(redPath, RedPrimary)
+        drawPath(primaryPath, primaryColor)
 
         val blackPath = Path().apply {
             moveTo(0f, h)
@@ -287,6 +315,6 @@ fun BottomDecoration(modifier: Modifier = Modifier) {
             quadraticTo(w * 0.3f, h * 0.7f, 0f, h * 0.6f)
             close()
         }
-        drawPath(blackPath, BlackTertiary)
+        drawPath(blackPath, tertiaryColor)
     }
 }

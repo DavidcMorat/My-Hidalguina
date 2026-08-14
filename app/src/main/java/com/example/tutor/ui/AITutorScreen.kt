@@ -77,42 +77,42 @@ fun AITutorScreen(
                             text = "Tutor IA & Aprendizaje",
                             fontSize = 18.sp,
                             fontWeight = FontWeight.Bold,
-                            color = BlackTertiary
+                            color = ThemeColors.textPrimary
                         )
                         Text(
                             text = "Planes interactivos, práctica real y tutoría",
                             fontSize = 11.sp,
-                            color = TextGray
+                            color = ThemeColors.textSecondary
                         )
                     }
                 },
                 navigationIcon = {
                     if (onBack != null) {
                         IconButton(onClick = onBack) {
-                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Regresar", tint = BlackTertiary)
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Regresar", tint = ThemeColors.textPrimary)
                         }
                     }
                 },
                 actions = {
                     if (currentTab == 1 && chatMessages.isNotEmpty()) {
                         IconButton(onClick = { viewModel.clearChat() }) {
-                            Icon(Icons.Outlined.DeleteSweep, contentDescription = "Limpiar chat", tint = TextGray)
+                            Icon(Icons.Outlined.DeleteSweep, contentDescription = "Limpiar chat", tint = ThemeColors.textSecondary)
                         }
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.White)
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = ThemeColors.surface)
             )
         }
     ) { innerPadding ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .background(BackgroundGray)
+                .background(ThemeColors.background)
                 .padding(innerPadding)
         ) {
             // Segmented Header Switch for the unified section
             Surface(
-                color = Color.White,
+                color = ThemeColors.surface,
                 shadowElevation = 1.dp,
                 modifier = Modifier.fillMaxWidth()
             ) {
@@ -138,9 +138,11 @@ fun AITutorScreen(
                         },
                         modifier = Modifier.weight(1f),
                         colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = RedPrimary.copy(alpha = 0.12f),
-                            selectedLabelColor = RedPrimary,
-                            selectedLeadingIconColor = RedPrimary
+                            selectedContainerColor = ThemeColors.primary.copy(alpha = 0.15f),
+                            selectedLabelColor = ThemeColors.primary,
+                            selectedLeadingIconColor = ThemeColors.primary,
+                            containerColor = ThemeColors.cardSurface,
+                            labelColor = ThemeColors.textSecondary
                         )
                     )
 
@@ -160,9 +162,11 @@ fun AITutorScreen(
                         },
                         modifier = Modifier.weight(1f),
                         colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = RedPrimary.copy(alpha = 0.12f),
-                            selectedLabelColor = RedPrimary,
-                            selectedLeadingIconColor = RedPrimary
+                            selectedContainerColor = ThemeColors.primary.copy(alpha = 0.15f),
+                            selectedLabelColor = ThemeColors.primary,
+                            selectedLeadingIconColor = ThemeColors.primary,
+                            containerColor = ThemeColors.cardSurface,
+                            labelColor = ThemeColors.textSecondary
                         )
                     )
                 }
@@ -239,7 +243,7 @@ fun UnifiedStudyPlansContent(
         // Action Header
         Card(
             modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.cardColors(containerColor = Color.White),
+            colors = CardDefaults.cardColors(containerColor = ThemeColors.cardSurface),
             shape = RoundedCornerShape(16.dp),
             elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
         ) {
@@ -255,23 +259,23 @@ fun UnifiedStudyPlansContent(
                         text = "Rutas de Aprendizaje",
                         fontSize = 16.sp,
                         fontWeight = FontWeight.Bold,
-                        color = BlackTertiary
+                        color = ThemeColors.textPrimary
                     )
                     Text(
                         text = "Infórmate, domina la teoría y califica tu práctica real.",
                         fontSize = 12.sp,
-                        color = TextGray
+                        color = ThemeColors.textSecondary
                     )
                 }
                 Spacer(modifier = Modifier.width(8.dp))
                 Button(
                     onClick = onOpenCreateDialog,
                     shape = RoundedCornerShape(12.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = RedPrimary)
+                    colors = ButtonDefaults.buttonColors(containerColor = ThemeColors.primary, contentColor = ThemeColors.onPrimary)
                 ) {
                     Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(16.dp))
                     Spacer(modifier = Modifier.width(4.dp))
-                    Text("Crear Plan", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    Text("Crear Plan", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = ThemeColors.onPrimary)
                 }
             }
         }
@@ -294,13 +298,13 @@ fun UnifiedStudyPlansContent(
                         modifier = Modifier
                             .size(72.dp)
                             .clip(CircleShape)
-                            .background(RedPrimary.copy(alpha = 0.1f)),
+                            .background(ThemeColors.primary.copy(alpha = 0.15f)),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
                             Icons.Filled.AutoStories,
                             contentDescription = null,
-                            tint = RedPrimary,
+                            tint = ThemeColors.primary,
                             modifier = Modifier.size(36.dp)
                         )
                     }
@@ -309,14 +313,14 @@ fun UnifiedStudyPlansContent(
                         text = "No hay planes de estudio creados",
                         fontSize = 17.sp,
                         fontWeight = FontWeight.Bold,
-                        color = BlackTertiary,
+                        color = ThemeColors.textPrimary,
                         textAlign = TextAlign.Center
                     )
                     Spacer(modifier = Modifier.height(6.dp))
                     Text(
                         text = "Crea tu primer plan personalizado con Gemini o haz consultas directas a tu Tutor IA.",
                         fontSize = 13.sp,
-                        color = TextGray,
+                        color = ThemeColors.textSecondary,
                         textAlign = TextAlign.Center,
                         lineHeight = 18.sp
                     )
@@ -325,12 +329,12 @@ fun UnifiedStudyPlansContent(
                     Button(
                         onClick = onOpenCreateDialog,
                         shape = RoundedCornerShape(12.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = RedPrimary),
+                        colors = ButtonDefaults.buttonColors(containerColor = ThemeColors.primary, contentColor = ThemeColors.onPrimary),
                         modifier = Modifier.fillMaxWidth(0.85f)
                     ) {
                         Icon(Icons.Filled.AutoAwesome, contentDescription = null, modifier = Modifier.size(18.dp))
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text("Crear Plan de Estudio con IA", fontWeight = FontWeight.Bold)
+                        Text("Crear Plan de Estudio con IA", fontWeight = FontWeight.Bold, color = ThemeColors.onPrimary)
                     }
 
                     Spacer(modifier = Modifier.height(10.dp))
@@ -342,7 +346,7 @@ fun UnifiedStudyPlansContent(
                     ) {
                         Icon(Icons.Filled.Psychology, contentDescription = null, modifier = Modifier.size(18.dp))
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text("Consultar Tutor IA", color = BlackTertiary)
+                        Text("Consultar Tutor IA", color = ThemeColors.textPrimary)
                     }
                 }
             }
@@ -384,7 +388,7 @@ fun StudyPlanCard(
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
+        colors = CardDefaults.cardColors(containerColor = ThemeColors.cardSurface),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
@@ -402,10 +406,10 @@ fun StudyPlanCard(
                         modifier = Modifier
                             .size(36.dp)
                             .clip(RoundedCornerShape(8.dp))
-                            .background(RedPrimary.copy(alpha = 0.1f)),
+                            .background(ThemeColors.primary.copy(alpha = 0.15f)),
                         contentAlignment = Alignment.Center
                     ) {
-                        Icon(Icons.Filled.AutoStories, contentDescription = null, tint = RedPrimary, modifier = Modifier.size(20.dp))
+                        Icon(Icons.Filled.AutoStories, contentDescription = null, tint = ThemeColors.primary, modifier = Modifier.size(20.dp))
                     }
                     Spacer(modifier = Modifier.width(10.dp))
                     Column {
@@ -413,20 +417,20 @@ fun StudyPlanCard(
                             text = plan.title,
                             fontSize = 15.sp,
                             fontWeight = FontWeight.Bold,
-                            color = BlackTertiary
+                            color = ThemeColors.textPrimary
                         )
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(
                                 text = plan.subject,
                                 fontSize = 11.sp,
-                                color = RedPrimary,
+                                color = ThemeColors.primary,
                                 fontWeight = FontWeight.SemiBold
                             )
                             if (plan.estimatedDuration.isNotBlank()) {
                                 Text(
                                     text = " • ${plan.estimatedDuration}",
                                     fontSize = 11.sp,
-                                    color = TextGray
+                                    color = ThemeColors.textSecondary
                                 )
                             }
                         }
@@ -435,13 +439,13 @@ fun StudyPlanCard(
 
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     IconButton(onClick = onDelete, modifier = Modifier.size(32.dp)) {
-                        Icon(Icons.Outlined.Delete, contentDescription = "Eliminar", tint = Color.LightGray, modifier = Modifier.size(18.dp))
+                        Icon(Icons.Outlined.Delete, contentDescription = "Eliminar", tint = ThemeColors.textSecondary, modifier = Modifier.size(18.dp))
                     }
                     IconButton(onClick = { isExpanded = !isExpanded }, modifier = Modifier.size(32.dp)) {
                         Icon(
                             if (isExpanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
                             contentDescription = "Expandir",
-                            tint = BlackTertiary
+                            tint = ThemeColors.textPrimary
                         )
                     }
                 }
@@ -452,7 +456,7 @@ fun StudyPlanCard(
                 Text(
                     text = plan.description,
                     fontSize = 12.sp,
-                    color = Color.DarkGray
+                    color = ThemeColors.textSecondary
                 )
             }
 
@@ -467,13 +471,13 @@ fun StudyPlanCard(
                     text = "Progreso: $achievedCount de $totalCount temas logrados",
                     fontSize = 11.sp,
                     fontWeight = FontWeight.Medium,
-                    color = BlackTertiary
+                    color = ThemeColors.textPrimary
                 )
                 Text(
                     text = "${(progress * 100).toInt()}%",
                     fontSize = 11.sp,
                     fontWeight = FontWeight.Bold,
-                    color = if (progress == 1f) Color(0xFF2E7D32) else RedPrimary
+                    color = if (progress == 1f) Color(0xFF2E7D32) else ThemeColors.primary
                 )
             }
             Spacer(modifier = Modifier.height(4.dp))
@@ -483,14 +487,14 @@ fun StudyPlanCard(
                     .fillMaxWidth()
                     .height(6.dp)
                     .clip(RoundedCornerShape(3.dp)),
-                color = if (progress == 1f) Color(0xFF2E7D32) else YellowSecondary,
-                trackColor = Color(0xFFEEEEEE)
+                color = if (progress == 1f) Color(0xFF2E7D32) else ThemeColors.primary,
+                trackColor = ThemeColors.divider
             )
 
             // Topics List with the 3 clear pedagogical steps
             AnimatedVisibility(visible = isExpanded) {
                 Column(modifier = Modifier.padding(top = 14.dp)) {
-                    HorizontalDivider(color = Color(0xFFF0F0F0))
+                    HorizontalDivider(color = ThemeColors.divider)
                     Spacer(modifier = Modifier.height(10.dp))
 
                     topics.forEachIndexed { index, topic ->
@@ -526,7 +530,7 @@ fun StructuredTopicCard(
     val cardBorderColor = when {
         isAchieved -> Color(0xFF81C784)
         hasDifficulty -> Color(0xFFFFB74D)
-        else -> Color(0xFFE0E0E0)
+        else -> ThemeColors.divider
     }
 
     Card(
@@ -534,13 +538,7 @@ fun StructuredTopicCard(
             .fillMaxWidth()
             .animateContentSize(),
         shape = RoundedCornerShape(14.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = when {
-                isAchieved -> Color(0xFFF9FCF9)
-                hasDifficulty -> Color(0xFFFFFBF5)
-                else -> Color(0xFFFAFAFA)
-            }
-        ),
+        colors = CardDefaults.cardColors(containerColor = ThemeColors.cardSurface),
         border = CardDefaults.outlinedCardBorder().copy(brush = androidx.compose.ui.graphics.SolidColor(cardBorderColor))
     ) {
         Column(modifier = Modifier.padding(14.dp)) {
@@ -555,13 +553,13 @@ fun StructuredTopicCard(
                         modifier = Modifier
                             .size(24.dp)
                             .clip(CircleShape)
-                            .background(if (isAchieved) Color(0xFF2E7D32) else RedPrimary),
+                            .background(if (isAchieved) Color(0xFF2E7D32) else ThemeColors.primary),
                         contentAlignment = Alignment.Center
                     ) {
                         if (isAchieved) {
                             Icon(Icons.Filled.Check, contentDescription = null, tint = Color.White, modifier = Modifier.size(14.dp))
                         } else {
-                            Text(text = "$index", fontSize = 11.sp, color = Color.White, fontWeight = FontWeight.Bold)
+                            Text(text = "$index", fontSize = 11.sp, color = ThemeColors.onPrimary, fontWeight = FontWeight.Bold)
                         }
                     }
                     Spacer(modifier = Modifier.width(8.dp))
@@ -569,7 +567,7 @@ fun StructuredTopicCard(
                         text = topic.title,
                         fontSize = 14.sp,
                         fontWeight = FontWeight.Bold,
-                        color = BlackTertiary
+                        color = ThemeColors.textPrimary
                     )
                 }
 
@@ -579,7 +577,7 @@ fun StructuredTopicCard(
                     color = when {
                         isAchieved -> Color(0xFF2E7D32).copy(alpha = 0.15f)
                         hasDifficulty -> Color(0xFFE65100).copy(alpha = 0.15f)
-                        else -> Color.Gray.copy(alpha = 0.15f)
+                        else -> ThemeColors.divider.copy(alpha = 0.3f)
                     }
                 ) {
                     Text(
@@ -593,7 +591,7 @@ fun StructuredTopicCard(
                         color = when {
                             isAchieved -> Color(0xFF2E7D32)
                             hasDifficulty -> Color(0xFFE65100)
-                            else -> Color.Gray
+                            else -> ThemeColors.textSecondary
                         },
                         modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
                     )
@@ -605,7 +603,7 @@ fun StructuredTopicCard(
             // 🌐 PASO 1: "Infórmate: Busca en la web (tema primordial...)"
             Card(
                 modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(containerColor = Color(0xFFEBF5FB)),
+                colors = CardDefaults.cardColors(containerColor = if (ThemeState.isDarkTheme) Color(0xFF0D253F) else Color(0xFFEBF5FB)),
                 shape = RoundedCornerShape(10.dp)
             ) {
                 Row(
@@ -615,7 +613,7 @@ fun StructuredTopicCard(
                     Icon(
                         Icons.Filled.Language,
                         contentDescription = null,
-                        tint = Color(0xFF1976D2),
+                        tint = if (ThemeState.isDarkTheme) Color(0xFF29B6F6) else Color(0xFF1976D2),
                         modifier = Modifier.size(18.dp)
                     )
                     Spacer(modifier = Modifier.width(8.dp))
@@ -624,13 +622,13 @@ fun StructuredTopicCard(
                             text = "1. Infórmate: Busca en la web",
                             fontWeight = FontWeight.Bold,
                             fontSize = 11.sp,
-                            color = Color(0xFF1976D2)
+                            color = if (ThemeState.isDarkTheme) Color(0xFF29B6F6) else Color(0xFF1976D2)
                         )
                         Spacer(modifier = Modifier.height(2.dp))
                         Text(
                             text = topic.description.ifBlank { "Investiga las bases y conceptos fundamentales de ${topic.title}." },
                             fontSize = 12.sp,
-                            color = BlackTertiary,
+                            color = ThemeColors.textPrimary,
                             lineHeight = 16.sp
                         )
                     }
@@ -642,7 +640,7 @@ fun StructuredTopicCard(
             // 📖 PASO 2: "Domina la teoría"
             Card(
                 modifier = Modifier.fillMaxWidth(),
-                colors = CardDefaults.cardColors(containerColor = Color(0xFFFFFDE7)),
+                colors = CardDefaults.cardColors(containerColor = if (ThemeState.isDarkTheme) Color(0xFF332B00) else Color(0xFFFFFDE7)),
                 shape = RoundedCornerShape(10.dp)
             ) {
                 Row(
@@ -652,7 +650,7 @@ fun StructuredTopicCard(
                     Icon(
                         Icons.Filled.MenuBook,
                         contentDescription = null,
-                        tint = Color(0xFFF57F17),
+                        tint = if (ThemeState.isDarkTheme) Color(0xFFFFCA28) else Color(0xFFF57F17),
                         modifier = Modifier.size(18.dp)
                     )
                     Spacer(modifier = Modifier.width(8.dp))
@@ -661,13 +659,13 @@ fun StructuredTopicCard(
                             text = "2. Domina la teoría",
                             fontWeight = FontWeight.Bold,
                             fontSize = 11.sp,
-                            color = Color(0xFFF57F17)
+                            color = if (ThemeState.isDarkTheme) Color(0xFFFFCA28) else Color(0xFFF57F17)
                         )
                         Spacer(modifier = Modifier.height(2.dp))
                         Text(
                             text = topic.keyConcept.ifBlank { "Revisa fórmulas, reglas clave y axiomas esenciales." },
                             fontSize = 12.sp,
-                            color = BlackTertiary,
+                            color = ThemeColors.textPrimary,
                             lineHeight = 16.sp
                         )
                     }
@@ -686,7 +684,8 @@ fun StructuredTopicCard(
                     modifier = Modifier.weight(1f),
                     shape = RoundedCornerShape(10.dp),
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = if (isAchieved) Color(0xFF388E3C) else RedPrimary
+                        containerColor = if (isAchieved) Color(0xFF2E7D32) else ThemeColors.primary,
+                        contentColor = if (isAchieved) Color.White else ThemeColors.onPrimary
                     ),
                     contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp)
                 ) {
@@ -713,7 +712,7 @@ fun StructuredTopicCard(
                     Icon(
                         imageVector = if (isAchieved) Icons.Filled.CheckCircle else Icons.Outlined.CheckCircle,
                         contentDescription = "Marcar Logrado",
-                        tint = if (isAchieved) Color(0xFF2E7D32) else Color.Gray,
+                        tint = if (isAchieved) Color(0xFF2E7D32) else ThemeColors.textSecondary,
                         modifier = Modifier.size(20.dp)
                     )
                 }
@@ -752,7 +751,7 @@ fun TutorConsultUnifiedContent(
     Column(modifier = Modifier.fillMaxSize()) {
         // Socratic Badge Info Banner
         Surface(
-            color = YellowSecondary.copy(alpha = 0.18f),
+            color = if (ThemeState.isDarkTheme) Color(0xFF263238) else Color(0xFFFEF3C7),
             modifier = Modifier.fillMaxWidth()
         ) {
             Row(
@@ -762,14 +761,14 @@ fun TutorConsultUnifiedContent(
                 Icon(
                     Icons.Filled.Psychology,
                     contentDescription = null,
-                    tint = RedPrimary,
+                    tint = ThemeColors.primary,
                     modifier = Modifier.size(20.dp)
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
                     text = "Tutor Socrático: Te orienta con preguntas y pistas para que resuelvas por ti mismo.",
                     fontSize = 11.sp,
-                    color = BlackTertiary,
+                    color = ThemeColors.textPrimary,
                     lineHeight = 14.sp
                 )
             }
@@ -796,34 +795,35 @@ fun TutorConsultUnifiedContent(
                             modifier = Modifier
                                 .size(56.dp)
                                 .clip(CircleShape)
-                                .background(RedPrimary.copy(alpha = 0.1f)),
+                                .background(ThemeColors.primary.copy(alpha = 0.15f)),
                             contentAlignment = Alignment.Center
                         ) {
-                            Icon(Icons.Filled.Psychology, contentDescription = null, tint = RedPrimary, modifier = Modifier.size(32.dp))
+                            Icon(Icons.Filled.Psychology, contentDescription = null, tint = ThemeColors.primary, modifier = Modifier.size(32.dp))
                         }
                         Spacer(modifier = Modifier.height(12.dp))
                         Text(
                             text = "¿Qué duda escolar tienes hoy?",
                             fontSize = 16.sp,
                             fontWeight = FontWeight.Bold,
-                            color = BlackTertiary
+                            color = ThemeColors.textPrimary
                         )
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
                             text = "Escribe tu pregunta o selecciona una sugerencia para comenzar:",
                             fontSize = 12.sp,
-                            color = TextGray
+                            color = ThemeColors.textSecondary
                         )
                         Spacer(modifier = Modifier.height(16.dp))
 
                         quickQuestions.forEach { q ->
                             SuggestionChip(
                                 onClick = { onSendMessage(q) },
-                                label = { Text(q, fontSize = 11.sp, color = BlackTertiary) },
+                                label = { Text(q, fontSize = 11.sp, color = ThemeColors.textPrimary) },
                                 shape = RoundedCornerShape(12.dp),
                                 modifier = Modifier.padding(vertical = 3.dp),
                                 colors = SuggestionChipDefaults.suggestionChipColors(
-                                    containerColor = Color.White
+                                    containerColor = ThemeColors.cardSurface,
+                                    labelColor = ThemeColors.textPrimary
                                 )
                             )
                         }
@@ -848,23 +848,23 @@ fun TutorConsultUnifiedContent(
                             modifier = Modifier
                                 .size(28.dp)
                                 .clip(CircleShape)
-                                .background(RedPrimary),
+                                .background(ThemeColors.primary),
                             contentAlignment = Alignment.Center
                         ) {
-                            Icon(Icons.Filled.Psychology, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
+                            Icon(Icons.Filled.Psychology, contentDescription = null, tint = ThemeColors.onPrimary, modifier = Modifier.size(16.dp))
                         }
                         Spacer(modifier = Modifier.width(8.dp))
                         Card(
                             shape = RoundedCornerShape(12.dp),
-                            colors = CardDefaults.cardColors(containerColor = Color.White)
+                            colors = CardDefaults.cardColors(containerColor = ThemeColors.cardSurface)
                         ) {
                             Row(
                                 modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                CircularProgressIndicator(modifier = Modifier.size(14.dp), strokeWidth = 2.dp, color = RedPrimary)
+                                CircularProgressIndicator(modifier = Modifier.size(14.dp), strokeWidth = 2.dp, color = ThemeColors.primary)
                                 Spacer(modifier = Modifier.width(8.dp))
-                                Text("El Tutor IA está pensando...", fontSize = 12.sp, color = Color.Gray)
+                                Text("El Tutor IA está pensando...", fontSize = 12.sp, color = ThemeColors.textSecondary)
                             }
                         }
                     }
@@ -877,15 +877,16 @@ fun TutorConsultUnifiedContent(
             LazyRow(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(Color.White)
+                    .background(ThemeColors.surface)
                     .padding(horizontal = 12.dp, vertical = 6.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 items(quickQuestions) { q ->
                     SuggestionChip(
                         onClick = { onSendMessage(q) },
-                        label = { Text(q, fontSize = 10.sp) },
-                        shape = RoundedCornerShape(10.dp)
+                        label = { Text(q, fontSize = 10.sp, color = ThemeColors.textPrimary) },
+                        shape = RoundedCornerShape(10.dp),
+                        colors = SuggestionChipDefaults.suggestionChipColors(containerColor = ThemeColors.cardSurface)
                     )
                 }
             }
@@ -893,7 +894,7 @@ fun TutorConsultUnifiedContent(
 
         // Chat Input Bar
         Surface(
-            color = Color.White,
+            color = ThemeColors.surface,
             shadowElevation = 8.dp,
             modifier = Modifier.fillMaxWidth()
         ) {
@@ -906,13 +907,17 @@ fun TutorConsultUnifiedContent(
                 OutlinedTextField(
                     value = inputText,
                     onValueChange = { inputText = it },
-                    placeholder = { Text("Escribe tu pregunta o duda...", fontSize = 13.sp) },
+                    placeholder = { Text("Escribe tu pregunta o duda...", fontSize = 13.sp, color = ThemeColors.textSecondary) },
                     modifier = Modifier.weight(1f),
                     shape = RoundedCornerShape(20.dp),
                     maxLines = 4,
                     colors = OutlinedTextFieldDefaults.colors(
-                        unfocusedBorderColor = DividerGray,
-                        focusedBorderColor = RedPrimary
+                        unfocusedBorderColor = ThemeColors.divider,
+                        focusedBorderColor = ThemeColors.primary,
+                        focusedTextColor = ThemeColors.inputTextColor,
+                        unfocusedTextColor = ThemeColors.inputTextColor,
+                        unfocusedContainerColor = ThemeColors.inputBackground,
+                        focusedContainerColor = ThemeColors.inputBackground
                     )
                 )
 
@@ -929,12 +934,12 @@ fun TutorConsultUnifiedContent(
                     modifier = Modifier
                         .size(44.dp)
                         .clip(CircleShape)
-                        .background(if (inputText.isNotBlank() && !isAsking) RedPrimary else Color.LightGray)
+                        .background(if (inputText.isNotBlank() && !isAsking) ThemeColors.primary else ThemeColors.divider)
                 ) {
                     Icon(
                         imageVector = Icons.AutoMirrored.Filled.Send,
                         contentDescription = "Enviar",
-                        tint = Color.White,
+                        tint = ThemeColors.onPrimary,
                         modifier = Modifier.size(20.dp)
                     )
                 }
@@ -960,10 +965,10 @@ fun TutorChatBubble(
                 modifier = Modifier
                     .size(28.dp)
                     .clip(CircleShape)
-                    .background(RedPrimary),
+                    .background(ThemeColors.primary),
                 contentAlignment = Alignment.Center
             ) {
-                Icon(Icons.Filled.Psychology, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
+                Icon(Icons.Filled.Psychology, contentDescription = null, tint = ThemeColors.onPrimary, modifier = Modifier.size(16.dp))
             }
             Spacer(modifier = Modifier.width(8.dp))
         }
@@ -980,7 +985,7 @@ fun TutorChatBubble(
                     bottomEnd = if (isUser) 4.dp else 16.dp
                 ),
                 colors = CardDefaults.cardColors(
-                    containerColor = if (isUser) RedPrimary else Color.White
+                    containerColor = if (isUser) ThemeColors.primary else ThemeColors.cardSurface
                 ),
                 elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
             ) {
@@ -988,7 +993,7 @@ fun TutorChatBubble(
                     Text(
                         text = message.content,
                         fontSize = 13.sp,
-                        color = if (isUser) Color.White else BlackTertiary,
+                        color = if (isUser) ThemeColors.onPrimary else ThemeColors.textPrimary,
                         lineHeight = 18.sp
                     )
 
@@ -998,7 +1003,7 @@ fun TutorChatBubble(
                         Button(
                             onClick = { onGeneratePlanFromPrompt(message.suggestedTopicPrompt) },
                             shape = RoundedCornerShape(10.dp),
-                            colors = ButtonDefaults.buttonColors(containerColor = YellowSecondary),
+                            colors = ButtonDefaults.buttonColors(containerColor = if (ThemeState.isDarkTheme) YellowSecondary else Color(0xFFFEF3C7)),
                             contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp)
                         ) {
                             Icon(Icons.Filled.AutoAwesome, contentDescription = null, tint = BlackTertiary, modifier = Modifier.size(16.dp))

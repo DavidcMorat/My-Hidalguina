@@ -55,8 +55,8 @@ fun MessagesTab(
     val classroomUsers by chatViewModel.classroomUsers.collectAsState()
     val isSearching by chatViewModel.isSearching.collectAsState()
 
-    Column(modifier = modifier.fillMaxSize().background(BackgroundGray).padding(16.dp)) {
-        Text("Mensajes", fontSize = 24.sp, fontWeight = FontWeight.Bold, color = BlackTertiary)
+    Column(modifier = modifier.fillMaxSize().background(ThemeColors.background).padding(16.dp)) {
+        Text("Mensajes", fontSize = 24.sp, fontWeight = FontWeight.Bold, color = ThemeColors.textPrimary)
         Spacer(modifier = Modifier.height(16.dp))
         
         Row(
@@ -71,16 +71,16 @@ fun MessagesTab(
                     chatViewModel.searchUser(it)
                 },
                 modifier = Modifier.weight(1f),
-                placeholder = { Text("Buscar estudiante o usuario") },
-                leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
+                placeholder = { Text("Buscar estudiante o usuario", color = ThemeColors.textSecondary) },
+                leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null, tint = ThemeColors.textSecondary) },
                 shape = RoundedCornerShape(12.dp),
                 colors = OutlinedTextFieldDefaults.colors(
-                    unfocusedBorderColor = DividerGray,
-                    focusedBorderColor = RedPrimary,
-                    unfocusedContainerColor = Color.White,
-                    focusedContainerColor = Color.White,
-                    focusedTextColor = BlackTertiary,
-                    unfocusedTextColor = BlackTertiary
+                    unfocusedBorderColor = ThemeColors.divider,
+                    focusedBorderColor = ThemeColors.primary,
+                    unfocusedContainerColor = ThemeColors.inputBackground,
+                    focusedContainerColor = ThemeColors.inputBackground,
+                    focusedTextColor = ThemeColors.inputTextColor,
+                    unfocusedTextColor = ThemeColors.inputTextColor
                 ),
                 singleLine = true
             )
@@ -89,16 +89,16 @@ fun MessagesTab(
                     chatViewModel.searchUser(searchQuery)
                 },
                 shape = RoundedCornerShape(12.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = RedPrimary),
+                colors = ButtonDefaults.buttonColors(containerColor = ThemeColors.primary, contentColor = ThemeColors.onPrimary),
                 contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp)
             ) {
-                Text("Buscar", color = Color.White, fontWeight = FontWeight.Bold)
+                Text("Buscar", color = ThemeColors.onPrimary, fontWeight = FontWeight.Bold)
             }
         }
         Spacer(modifier = Modifier.height(16.dp))
         
         if (searchQuery.isNotEmpty()) {
-            Text("Resultados de búsqueda:", fontWeight = FontWeight.SemiBold, color = TextGray)
+            Text("Resultados de búsqueda:", fontWeight = FontWeight.SemiBold, color = ThemeColors.textSecondary)
             Spacer(modifier = Modifier.height(8.dp))
             LazyColumn {
                 items(searchResults) { user ->
@@ -114,10 +114,10 @@ fun MessagesTab(
                 horizontalArrangement = Arrangement.SpaceEvenly
             ) {
                 TextButton(onClick = { showDirectory = false }) {
-                    Text("Tus chats", color = if (!showDirectory) RedPrimary else TextGray, fontWeight = if (!showDirectory) FontWeight.Bold else FontWeight.Normal)
+                    Text("Tus chats", color = if (!showDirectory) ThemeColors.primary else ThemeColors.textSecondary, fontWeight = if (!showDirectory) FontWeight.Bold else FontWeight.Normal)
                 }
                 TextButton(onClick = { showDirectory = true }) {
-                    Text("Salón de clases", color = if (showDirectory) RedPrimary else TextGray, fontWeight = if (showDirectory) FontWeight.Bold else FontWeight.Normal)
+                    Text("Salón de clases", color = if (showDirectory) ThemeColors.primary else ThemeColors.textSecondary, fontWeight = if (showDirectory) FontWeight.Bold else FontWeight.Normal)
                 }
             }
             Spacer(modifier = Modifier.height(8.dp))
@@ -134,7 +134,7 @@ fun MessagesTab(
                         item {
                             Text(
                                 "No hay compañeros en tu salón.",
-                                color = TextGray,
+                                color = ThemeColors.textSecondary,
                                 modifier = Modifier.padding(top = 16.dp).fillMaxWidth(),
                                 textAlign = androidx.compose.ui.text.style.TextAlign.Center
                             )
@@ -153,7 +153,7 @@ fun MessagesTab(
                         item {
                             Text(
                                 "Aún no tienes chats.",
-                                color = TextGray,
+                                color = ThemeColors.textSecondary,
                                 modifier = Modifier.padding(top = 16.dp).fillMaxWidth(),
                                 textAlign = androidx.compose.ui.text.style.TextAlign.Center
                             )
@@ -177,7 +177,7 @@ fun UserListItem(
             .fillMaxWidth()
             .padding(vertical = 4.dp)
             .clip(RoundedCornerShape(12.dp))
-            .background(Color.White)
+            .background(ThemeColors.cardSurface)
             .clickable(onClick = onClick)
             .padding(16.dp),
         verticalAlignment = Alignment.CenterVertically
@@ -186,24 +186,24 @@ fun UserListItem(
             modifier = Modifier
                 .size(40.dp)
                 .clip(CircleShape)
-                .background(if (hasUnread) RedPrimary else YellowSecondary),
+                .background(if (hasUnread) ThemeColors.primary else ThemeColors.primary.copy(alpha = 0.3f)),
             contentAlignment = Alignment.Center
         ) {
-            Icon(Icons.Filled.Person, contentDescription = null, tint = Color.White)
+            Icon(Icons.Filled.Person, contentDescription = null, tint = ThemeColors.onPrimary)
         }
         Spacer(modifier = Modifier.width(16.dp))
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = user.displayName, 
                 fontWeight = if (hasUnread) FontWeight.Bold else FontWeight.SemiBold, 
-                color = BlackTertiary,
+                color = ThemeColors.textPrimary,
                 fontSize = 16.sp
             )
             if (lastMessage.isNotEmpty()) {
                 Spacer(modifier = Modifier.height(2.dp))
                 Text(
                     text = lastMessage,
-                    color = if (hasUnread) BlackTertiary else TextGray,
+                    color = if (hasUnread) ThemeColors.textPrimary else ThemeColors.textSecondary,
                     fontSize = 13.sp,
                     maxLines = 1,
                     fontWeight = if (hasUnread) FontWeight.Bold else FontWeight.Normal
@@ -215,7 +215,7 @@ fun UserListItem(
             Box(
                 modifier = Modifier
                     .clip(RoundedCornerShape(8.dp))
-                    .background(RedPrimary)
+                    .background(ThemeColors.primary)
                     .padding(horizontal = 8.dp, vertical = 4.dp),
                 contentAlignment = Alignment.Center
             ) {
@@ -227,11 +227,11 @@ fun UserListItem(
                         modifier = Modifier
                             .size(6.dp)
                             .clip(CircleShape)
-                            .background(Color.White)
+                            .background(ThemeColors.onPrimary)
                     )
                     Text(
                         text = "NUEVO", 
-                        color = Color.White, 
+                        color = ThemeColors.onPrimary, 
                         fontSize = 9.sp, 
                         fontWeight = FontWeight.Bold
                     )
@@ -259,16 +259,16 @@ fun ChatDetailScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(user.displayName) },
+                title = { Text(user.displayName, color = ThemeColors.textPrimary) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Volver")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Volver", tint = ThemeColors.textPrimary)
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = Color.White,
-                    titleContentColor = BlackTertiary,
-                    navigationIconContentColor = BlackTertiary
+                    containerColor = ThemeColors.surface,
+                    titleContentColor = ThemeColors.textPrimary,
+                    navigationIconContentColor = ThemeColors.textPrimary
                 )
             )
         },
@@ -276,7 +276,7 @@ fun ChatDetailScreen(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(Color.White)
+                    .background(ThemeColors.surface)
             ) {
                 Row(
                     modifier = Modifier
@@ -290,7 +290,7 @@ fun ChatDetailScreen(
                         Icon(
                             imageVector = Icons.Filled.StickyNote2,
                             contentDescription = "Stickers",
-                            tint = if (showStickers) RedPrimary else TextGray
+                            tint = if (showStickers) ThemeColors.primary else ThemeColors.textSecondary
                         )
                     }
                     Spacer(modifier = Modifier.width(4.dp))
@@ -303,15 +303,15 @@ fun ChatDetailScreen(
                             }
                         },
                         modifier = Modifier.weight(1f),
-                        placeholder = { Text("Escribe un mensaje...") },
+                        placeholder = { Text("Escribe un mensaje...", color = ThemeColors.textSecondary) },
                         shape = RoundedCornerShape(24.dp),
                         colors = OutlinedTextFieldDefaults.colors(
-                            unfocusedContainerColor = BackgroundGray,
-                            focusedContainerColor = BackgroundGray,
-                            unfocusedBorderColor = Color.Transparent,
-                            focusedBorderColor = Color.Transparent,
-                            focusedTextColor = BlackTertiary,
-                            unfocusedTextColor = BlackTertiary
+                            unfocusedContainerColor = ThemeColors.inputBackground,
+                            focusedContainerColor = ThemeColors.inputBackground,
+                            unfocusedBorderColor = ThemeColors.divider,
+                            focusedBorderColor = ThemeColors.primary,
+                            focusedTextColor = ThemeColors.inputTextColor,
+                            unfocusedTextColor = ThemeColors.inputTextColor
                         ),
                         maxLines = 3
                     )
@@ -323,9 +323,9 @@ fun ChatDetailScreen(
                                 text = ""
                             }
                         },
-                        modifier = Modifier.size(48.dp).clip(CircleShape).background(RedPrimary)
+                        modifier = Modifier.size(48.dp).clip(CircleShape).background(if (text.isNotBlank()) ThemeColors.primary else ThemeColors.divider)
                     ) {
-                        Icon(Icons.Filled.Send, contentDescription = "Enviar", tint = Color.White)
+                        Icon(Icons.Filled.Send, contentDescription = "Enviar", tint = ThemeColors.onPrimary)
                     }
                 }
                 
@@ -344,12 +344,11 @@ fun ChatDetailScreen(
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
-                .background(BackgroundGray)
+                .background(ThemeColors.background)
                 .padding(padding)
                 .padding(horizontal = 16.dp),
             reverseLayout = true
         ) {
-            // To display correctly with reverseLayout = true, we reverse the list
             val displayMessages = messages.reversed()
             items(displayMessages) { msg ->
                 MessageBubble(msg, onSaveSticker = { base64Data, isGif ->
@@ -423,8 +422,9 @@ fun MessageBubble(
                     if (showSaveDialog && onSaveSticker != null) {
                         AlertDialog(
                             onDismissRequest = { showSaveDialog = false },
-                            title = { Text("Guardar Sticker") },
-                            text = { Text("¿Deseas guardar este sticker en tus Favoritos?") },
+                            containerColor = ThemeColors.surface,
+                            title = { Text("Guardar Sticker", color = ThemeColors.textPrimary) },
+                            text = { Text("¿Deseas guardar este sticker en tus Favoritos?", color = ThemeColors.textSecondary) },
                             confirmButton = {
                                 TextButton(
                                     onClick = {
@@ -432,12 +432,12 @@ fun MessageBubble(
                                         showSaveDialog = false
                                     }
                                 ) {
-                                    Text("Guardar", color = RedPrimary, fontWeight = FontWeight.Bold)
+                                    Text("Guardar", color = ThemeColors.primary, fontWeight = FontWeight.Bold)
                                 }
                             },
                             dismissButton = {
                                 TextButton(onClick = { showSaveDialog = false }) {
-                                    Text("Cancelar", color = TextGray)
+                                    Text("Cancelar", color = ThemeColors.textSecondary)
                                 }
                             }
                         )
@@ -468,44 +468,60 @@ fun MessageBubble(
                 }
             } else {
                 // Text Message UI
-                val borderColor = if (msg.isSentByMe) {
-                    if (isRead) RedPrimary else YellowSecondary
+                if (msg.isSentByMe) {
+                    Box(
+                        modifier = Modifier
+                            .clip(
+                                RoundedCornerShape(
+                                    topStart = 16.dp,
+                                    topEnd = 16.dp,
+                                    bottomStart = 16.dp,
+                                    bottomEnd = 4.dp
+                                )
+                            )
+                            .background(ThemeColors.primary)
+                            .padding(12.dp)
+                    ) {
+                        Text(
+                            text = msg.text,
+                            color = ThemeColors.onPrimary,
+                            fontSize = 15.sp
+                        )
+                    }
                 } else {
-                    BlackTertiary
-                }
-                
-                Box(
-                    modifier = Modifier
-                        .border(
-                            width = 1.dp,
-                            color = borderColor,
-                            shape = RoundedCornerShape(
-                                topStart = 16.dp,
-                                topEnd = 16.dp,
-                                bottomStart = if (msg.isSentByMe) 16.dp else 4.dp,
-                                bottomEnd = if (msg.isSentByMe) 4.dp else 16.dp
+                    Box(
+                        modifier = Modifier
+                            .border(
+                                width = 1.dp,
+                                color = ThemeColors.divider,
+                                shape = RoundedCornerShape(
+                                    topStart = 16.dp,
+                                    topEnd = 16.dp,
+                                    bottomStart = 4.dp,
+                                    bottomEnd = 16.dp
+                                )
                             )
-                        )
-                        .clip(
-                            RoundedCornerShape(
-                                topStart = 16.dp,
-                                topEnd = 16.dp,
-                                bottomStart = if (msg.isSentByMe) 16.dp else 4.dp,
-                                bottomEnd = if (msg.isSentByMe) 4.dp else 16.dp
+                            .clip(
+                                RoundedCornerShape(
+                                    topStart = 16.dp,
+                                    topEnd = 16.dp,
+                                    bottomStart = 4.dp,
+                                    bottomEnd = 16.dp
+                                )
                             )
+                            .background(ThemeColors.cardSurface)
+                            .padding(12.dp)
+                    ) {
+                        Text(
+                            text = msg.text,
+                            color = ThemeColors.textPrimary,
+                            fontSize = 15.sp
                         )
-                        .background(Color.White)
-                        .padding(12.dp)
-                ) {
-                    Text(
-                        text = msg.text,
-                        color = BlackTertiary,
-                        fontSize = 15.sp
-                    )
+                    }
                 }
             }
             Spacer(modifier = Modifier.height(2.dp))
-            Text(time, fontSize = 10.sp, color = TextGray)
+            Text(time, fontSize = 10.sp, color = ThemeColors.textSecondary)
         }
     }
 }
@@ -518,7 +534,6 @@ fun StickersPanel(
     val stickerPacks by chatViewModel.stickerPacks.collectAsState(initial = emptyList())
     var selectedPackId by remember { mutableStateOf("favorites") }
     
-    // Ensure "favorites" is selected by default, or the first pack if favorites is empty
     LaunchedEffect(stickerPacks) {
         if (stickerPacks.isNotEmpty() && selectedPackId == "favorites") {
             val favorites = stickerPacks.firstOrNull { it.id == "favorites" }
@@ -550,14 +565,14 @@ fun StickersPanel(
         modifier = Modifier
             .fillMaxWidth()
             .height(260.dp)
-            .background(Color.White)
-            .border(1.dp, BackgroundGray)
+            .background(ThemeColors.surface)
+            .border(1.dp, ThemeColors.divider)
     ) {
         // Grid of Stickers
         Box(
             modifier = Modifier
                 .weight(1f)
-                .background(BackgroundGray)
+                .background(ThemeColors.background)
                 .fillMaxWidth()
         ) {
             if (selectedPack == null || selectedPack.stickers.isEmpty()) {
@@ -569,7 +584,7 @@ fun StickersPanel(
                         text = if (selectedPackId == "favorites") 
                             "No tienes stickers guardados.\n¡Haz clic en los stickers que recibas para guardarlos!" 
                             else "Este paquete está vacío.",
-                        color = TextGray,
+                        color = ThemeColors.textSecondary,
                         fontSize = 14.sp,
                         textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                         modifier = Modifier.padding(16.dp)
@@ -588,7 +603,7 @@ fun StickersPanel(
                             modifier = Modifier
                                 .aspectRatio(1f)
                                 .clip(RoundedCornerShape(8.dp))
-                                .background(Color.White)
+                                .background(ThemeColors.cardSurface)
                                 .clickable { onStickerSelected(sticker) }
                                 .padding(8.dp),
                             contentAlignment = Alignment.Center
@@ -612,7 +627,7 @@ fun StickersPanel(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(56.dp)
-                .background(Color.White)
+                .background(ThemeColors.surface)
                 .padding(horizontal = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(16.dp)
@@ -630,7 +645,7 @@ fun StickersPanel(
                         modifier = Modifier
                             .size(32.dp)
                             .clip(CircleShape)
-                            .background(if (isSelected) RedPrimary.copy(alpha = 0.1f) else Color.Transparent)
+                            .background(if (isSelected) ThemeColors.primary.copy(alpha = 0.15f) else Color.Transparent)
                             .padding(4.dp),
                         contentAlignment = Alignment.Center
                     ) {
@@ -638,7 +653,7 @@ fun StickersPanel(
                             Icon(
                                 imageVector = Icons.Filled.AddReaction,
                                 contentDescription = pack.name,
-                                tint = if (isSelected) RedPrimary else TextGray,
+                                tint = if (isSelected) ThemeColors.primary else ThemeColors.textSecondary,
                                 modifier = Modifier.size(22.dp)
                             )
                         } else {
@@ -655,7 +670,7 @@ fun StickersPanel(
                     Box(
                         modifier = Modifier
                             .size(width = 16.dp, height = 2.dp)
-                            .background(if (isSelected) RedPrimary else Color.Transparent)
+                            .background(if (isSelected) ThemeColors.primary else Color.Transparent)
                     )
                 }
             }

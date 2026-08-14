@@ -74,8 +74,9 @@ class StudyRepository(private val dao: StudyPlanDao) {
                 REGLAS ESTRICTAS:
                 1. NUNCA des respuestas directas ni resuelvas ejercicios o tareas escolares de golpe.
                 2. Usa el método socrático: haz preguntas guía, desglosa el problema en pasos pequeños, da pistas y analogías.
-                3. Si detectas que el alumno tiene dificultades con un tema o necesita una ruta estructurada de aprendizaje, sugiere crear un Plan de Estudio interactivo y añade al final de tu mensaje la etiqueta [PLAN_SUGGESTION: <tema detallado>] para que pueda generarlo con un toque.
-                4. Sé motivador, claro, conciso y cordial.
+                3. REGLA ESTRICTA DE FORMATO EN MATEMÁTICAS: NUNCA utilices código LaTeX crudo (como \frac{}{}, \sqrt{}, $$, \pm, etc.) ni bloques de código de máquina. Escribe las fórmulas y operaciones de forma 100% clara, limpia y legible para humanos usando caracteres legibles estándar como: x² + 5x + 6 = 0, √(16) = 4, ±, ×, ÷, ½, π, x₁ = 2.
+                4. Si detectas que el alumno tiene dificultades con un tema o necesita una ruta estructurada de aprendizaje, sugiere crear un Plan de Estudio interactivo y añade al final de tu mensaje la etiqueta [PLAN_SUGGESTION: <tema detallado>] para que pueda generarlo con un toque.
+                5. Sé motivador, claro, conciso y cordial.
             """.trimIndent()
 
             val messages = mutableListOf<GroqMessage>()
@@ -106,6 +107,8 @@ class StudyRepository(private val dao: StudyPlanDao) {
                 suggestedPlanPrompt = match.groupValues[1].trim()
                 cleanText = assistantText.replace(match.value, "").trim()
             }
+
+            cleanText = com.example.tutor.ui.MathTextFormatter.formatReadableMath(cleanText)
 
             saveChatMessage(userId, "user", userQuery)
             saveChatMessage(userId, "assistant", cleanText, suggestedPlanPrompt)
@@ -190,7 +193,7 @@ class StudyRepository(private val dao: StudyPlanDao) {
 
             val cleanJson = cleanJsonString(rawResponse)
             val adapter = AIApiClient.moshi.adapter(GeneratedStudyPlanJson::class.java)
-            val parsedPlan = adapter.fromJson(cleanJson)
+            val rawPlan = adapter.fromJson(cleanJson)
                 ?: throw IllegalStateException("No se pudo interpretar el JSON del plan de estudio.")
 
             val planId = UUID.randomUUID().toString()
@@ -198,20 +201,20 @@ class StudyRepository(private val dao: StudyPlanDao) {
             val planEntity = StudyPlanEntity(
                 id = planId,
                 userId = userId,
-                title = parsedPlan.title,
-                subject = parsedPlan.subject,
-                description = parsedPlan.description,
-                estimatedDuration = parsedPlan.estimatedDuration ?: "Flexible",
+                title = com.example.tutor.ui.MathTextFormatter.formatReadableMath(rawPlan.title),
+                subject = rawPlan.subject,
+                description = com.example.tutor.ui.MathTextFormatter.formatReadableMath(rawPlan.description),
+                estimatedDuration = rawPlan.estimatedDuration ?: "Flexible",
                 createdAt = now
             )
 
-            val topicEntities = parsedPlan.topics.mapIndexed { index, t ->
+            val topicEntities = rawPlan.topics.mapIndexed { index, t ->
                 StudyTopicEntity(
                     id = UUID.randomUUID().toString(),
                     planId = planId,
-                    title = t.title,
-                    description = t.description,
-                    keyConcept = t.keyConcept ?: "",
+                    title = com.example.tutor.ui.MathTextFormatter.formatReadableMath(t.title),
+                    description = com.example.tutor.ui.MathTextFormatter.formatReadableMath(t.description),
+                    keyConcept = com.example.tutor.ui.MathTextFormatter.formatReadableMath(t.keyConcept ?: ""),
                     orderIndex = index,
                     status = "PENDING",
                     miniLessonJson = null,
@@ -299,12 +302,26 @@ class StudyRepository(private val dao: StudyPlanDao) {
 
             val cleanJson = cleanJsonString(rawResponse)
             val adapter = AIApiClient.moshi.adapter(PracticeSessionJson::class.java)
-            val parsedPractice = adapter.fromJson(cleanJson)
+            val rawPractice = adapter.fromJson(cleanJson)
                 ?: throw IllegalStateException("No se pudo interpretar el JSON de la práctica.")
 
-            dao.saveTopicLessonAndStatus(topic.id, cleanJson, topic.status, System.currentTimeMillis())
+            val formattedPractice = rawPractice.copy(
+                topicTitle = com.example.tutor.ui.MathTextFormatter.formatReadableMath(rawPractice.topicTitle),
+                realWorldContext = rawPractice.realWorldContext?.let { com.example.tutor.ui.MathTextFormatter.formatReadableMath(it) },
+                theoryTip = rawPractice.theoryTip?.let { com.example.tutor.ui.MathTextFormatter.formatReadableMath(it) },
+                problems = rawPractice.problems.map { p ->
+                    p.copy(
+                        question = com.example.tutor.ui.MathTextFormatter.formatReadableMath(p.question),
+                        options = p.options.map { opt -> com.example.tutor.ui.MathTextFormatter.formatReadableMath(opt) },
+                        stepByStepExplanation = com.example.tutor.ui.MathTextFormatter.formatReadableMath(p.stepByStepExplanation)
+                    )
+                }
+            )
 
-            Result.success(parsedPractice)
+            val formattedJson = adapter.toJson(formattedPractice)
+            dao.saveTopicLessonAndStatus(topic.id, formattedJson, topic.status, System.currentTimeMillis())
+
+            Result.success(formattedPractice)
         } catch (e: Exception) {
             Result.failure(e)
         }

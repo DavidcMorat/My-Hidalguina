@@ -44,9 +44,34 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun signUpWithEmail(email: String, pass: String, username: String, studentName: String, grade: String, section: String) {
-        if (email.isBlank() || pass.isBlank() || username.isBlank() || studentName.isBlank() || grade.isBlank() || section.isBlank()) {
-            _authState.value = AuthState.Error("Todos los campos son obligatorios")
+    fun signUpWithEmail(
+        email: String,
+        pass: String,
+        username: String,
+        studentName: String,
+        grade: String = "",
+        section: String = "",
+        role: String = "estudiante",
+        subject: String = "",
+        tutoriaGrade: String = "",
+        tutoriaSection: String = "",
+        hasTutoria: Boolean = false,
+        teachingClassrooms: List<String> = emptyList()
+    ) {
+        if (email.isBlank() || pass.isBlank() || username.isBlank()) {
+            _authState.value = AuthState.Error("Por favor completa los datos obligatorios")
+            return
+        }
+        if (role == "estudiante" && (studentName.isBlank() || grade.isBlank() || section.isBlank())) {
+            _authState.value = AuthState.Error("Todos los campos del estudiante son obligatorios")
+            return
+        }
+        if (role == "docente" && (studentName.isBlank() || subject.isBlank())) {
+            _authState.value = AuthState.Error("Nombre del docente y materia son obligatorios")
+            return
+        }
+        if (role == "docente" && teachingClassrooms.isEmpty()) {
+            _authState.value = AuthState.Error("Selecciona al menos un grado y sección a los que enseña")
             return
         }
         viewModelScope.launch {
@@ -67,6 +92,12 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
                         putString("grade_backup_${user.uid}", grade)
                         putString("section_backup_${user.uid}", section)
                         putString("displayName_backup_${user.uid}", username)
+                        putString("role_backup_${user.uid}", role)
+                        putString("subject_backup_${user.uid}", subject)
+                        putBoolean("hasTutoria_backup_${user.uid}", hasTutoria)
+                        putString("tutoriaGrade_backup_${user.uid}", tutoriaGrade)
+                        putString("tutoriaSection_backup_${user.uid}", tutoriaSection)
+                        putStringSet("teachingClassrooms_backup_${user.uid}", teachingClassrooms.toSet())
                         apply()
                     }
 
@@ -77,13 +108,18 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
                         "studentName" to studentName,
                         "grade" to grade,
                         "section" to section,
+                        "role" to role,
+                        "subject" to subject,
+                        "hasTutoria" to hasTutoria,
+                        "tutoriaGrade" to tutoriaGrade,
+                        "tutoriaSection" to tutoriaSection,
+                        "teachingClassrooms" to teachingClassrooms,
                         "email" to email
                     )
                     try {
                         db.collection("users").document(user.uid).set(userData).await()
                     } catch (e: Exception) {
-                        // Log or ignore Firestore failures during sign up so the user is not stuck,
-                        // as they can now set/save these values directly in the Profile screen.
+                        // Log or ignore Firestore failures during sign up
                     }
                 }
                 _authState.value = AuthState.Success
@@ -93,9 +129,20 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun updateProfile(displayName: String, studentName: String, grade: String, section: String) {
-        if (displayName.isBlank() || studentName.isBlank() || grade.isBlank() || section.isBlank()) {
-            _authState.value = AuthState.Error("Todos los campos son obligatorios")
+    fun updateProfile(
+        displayName: String,
+        studentName: String,
+        grade: String,
+        section: String,
+        role: String = "estudiante",
+        subject: String = "",
+        tutoriaGrade: String = "",
+        tutoriaSection: String = "",
+        hasTutoria: Boolean = false,
+        teachingClassrooms: List<String> = emptyList()
+    ) {
+        if (displayName.isBlank() || studentName.isBlank()) {
+            _authState.value = AuthState.Error("Nombre y usuario son obligatorios")
             return
         }
         viewModelScope.launch {
@@ -115,6 +162,12 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
                         putString("grade_backup_${user.uid}", grade)
                         putString("section_backup_${user.uid}", section)
                         putString("displayName_backup_${user.uid}", displayName)
+                        putString("role_backup_${user.uid}", role)
+                        putString("subject_backup_${user.uid}", subject)
+                        putBoolean("hasTutoria_backup_${user.uid}", hasTutoria)
+                        putString("tutoriaGrade_backup_${user.uid}", tutoriaGrade)
+                        putString("tutoriaSection_backup_${user.uid}", tutoriaSection)
+                        putStringSet("teachingClassrooms_backup_${user.uid}", teachingClassrooms.toSet())
                         apply()
                     }
 
@@ -123,7 +176,13 @@ class AuthViewModel(application: Application) : AndroidViewModel(application) {
                         "displayName" to displayName,
                         "studentName" to studentName,
                         "grade" to grade,
-                        "section" to section
+                        "section" to section,
+                        "role" to role,
+                        "subject" to subject,
+                        "hasTutoria" to hasTutoria,
+                        "tutoriaGrade" to tutoriaGrade,
+                        "tutoriaSection" to tutoriaSection,
+                        "teachingClassrooms" to teachingClassrooms
                     )
                     db.collection("users").document(user.uid).set(userData, SetOptions.merge()).await()
                     

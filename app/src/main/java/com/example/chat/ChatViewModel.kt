@@ -110,8 +110,26 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                 }
                 
                 val sharedPrefs = getApplication<Application>().getSharedPreferences("user_profile_prefs", android.content.Context.MODE_PRIVATE)
-                val grade = myDoc?.getString("grade") ?: sharedPrefs.getString("grade_backup_$myUid", null) ?: return@launch
-                val section = myDoc?.getString("section") ?: sharedPrefs.getString("section_backup_$myUid", null) ?: return@launch
+                val role = myDoc?.getString("role") ?: sharedPrefs.getString("role_backup_$myUid", "estudiante") ?: "estudiante"
+                
+                val (grade, section) = if (role == "docente") {
+                    val hasTutoria = myDoc?.getBoolean("hasTutoria") ?: sharedPrefs.getBoolean("hasTutoria_backup_$myUid", false)
+                    if (!hasTutoria) {
+                        _classroomUsers.value = emptyList()
+                        return@launch
+                    }
+                    val tGrade = myDoc?.getString("tutoriaGrade") ?: sharedPrefs.getString("tutoriaGrade_backup_$myUid", "") ?: ""
+                    val tSection = myDoc?.getString("tutoriaSection") ?: sharedPrefs.getString("tutoriaSection_backup_$myUid", "") ?: ""
+                    if (tGrade.isBlank() || tSection.isBlank()) {
+                        _classroomUsers.value = emptyList()
+                        return@launch
+                    }
+                    Pair(tGrade, tSection)
+                } else {
+                    val sGrade = myDoc?.getString("grade") ?: sharedPrefs.getString("grade_backup_$myUid", null) ?: return@launch
+                    val sSection = myDoc?.getString("section") ?: sharedPrefs.getString("section_backup_$myUid", null) ?: return@launch
+                    Pair(sGrade, sSection)
+                }
                 
                 val result = db.collection("users")
                     .whereEqualTo("grade", grade)
@@ -124,11 +142,12 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
                     
                     val displayName = doc.getString("displayName") ?: ""
                     val studentName = doc.getString("studentName") ?: ""
+                    val userRole = doc.getString("role") ?: "estudiante"
                     
                     val display = if (studentName.isNotEmpty() && displayName.isNotEmpty()) {
-                        "$studentName ($displayName)"
+                        if (userRole == "docente") "Prof. $studentName" else "$studentName ($displayName)"
                     } else if (studentName.isNotEmpty()) {
-                        studentName
+                        if (userRole == "docente") "Prof. $studentName" else studentName
                     } else if (displayName.isNotEmpty()) {
                         displayName
                     } else {

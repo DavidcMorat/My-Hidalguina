@@ -6,8 +6,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -17,18 +15,29 @@ import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.dashboard.AchievementsDialog
+import com.example.dashboard.ProgressDialog
+import com.example.tasks.data.TaskModel
+import com.example.tasks.data.TaskRepository
+import com.example.tasks.ui.TasksScreen
+import com.example.tutor.data.StudyDatabase
+import com.example.tutor.data.StudyPlanWithTopics
 import com.example.ui.theme.*
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.FirebaseFirestore
+import kotlinx.coroutines.tasks.await
 
 @Composable
 fun StudentDashboard(
@@ -36,19 +45,155 @@ fun StudentDashboard(
     authViewModel: AuthViewModel = androidx.lifecycle.viewmodel.compose.viewModel(),
     onLogout: () -> Unit = {}
 ) {
-    var selectedTab by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf("Inicio") }
-    var tutorInitialTab by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(0) }
-    var selectedChatUser by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf<com.example.chat.ChatUser?>(null) }
-    
+    val context = LocalContext.current
+    val user = FirebaseAuth.getInstance().currentUser
+    val currentUserId = user?.uid ?: ""
+
+    var selectedTab by remember { mutableStateOf("Inicio") }
+    var tutorInitialTab by remember { mutableStateOf(0) }
+    var selectedChatUser by remember { mutableStateOf<com.example.chat.ChatUser?>(null) }
+    var showTasksScreen by remember { mutableStateOf(false) }
+    var showProgressDialog by remember { mutableStateOf(false) }
+    var showAchievementsDialog by remember { mutableStateOf(false) }
+
+    // User profile and role
+    var role by remember { mutableStateOf("estudiante") }
+    var displayName by remember { mutableStateOf(user?.displayName ?: "Usuario") }
+    var studentGrade by remember { mutableStateOf("") }
+    var studentSection by remember { mutableStateOf("") }
+
+    // Local announcements from Room
+    val localAnnouncementDao = remember { StudyDatabase.getDatabase(context).localAnnouncementDao() }
+    val localAnnouncements by localAnnouncementDao.getAllLocalAnnouncements().collectAsState(initial = emptyList())
+
+    LaunchedEffect(currentUserId) {
+        if (currentUserId.isNotEmpty()) {
+            val sharedPrefs = context.getSharedPreferences("user_profile_prefs", android.content.Context.MODE_PRIVATE)
+            role = sharedPrefs.getString("role_backup_$currentUserId", "estudiante") ?: "estudiante"
+            displayName = sharedPrefs.getString("displayName_backup_$currentUserId", user?.displayName ?: "Usuario") ?: "Usuario"
+            studentGrade = sharedPrefs.getString("grade_backup_$currentUserId", "") ?: ""
+            studentSection = sharedPrefs.getString("section_backup_$currentUserId", "") ?: ""
+
+            try {
+                val db = FirebaseFirestore.getInstance()
+                val doc = db.collection("users").document(currentUserId).get().await()
+                val fRole = doc.getString("role") ?: "estudiante"
+                val fDisplayName = doc.getString("displayName") ?: (user?.displayName ?: "Usuario")
+                role = fRole
+                displayName = fDisplayName
+                studentGrade = doc.getString("grade") ?: studentGrade
+                studentSection = doc.getString("section") ?: studentSection
+            } catch (e: Exception) {
+                // Ignore fallback to local prefs
+            }
+
+            // Sync announcements from Firebase ONCE per dashboard launch to save reads
+            try {
+                val firestoreDb = FirebaseFirestore.getInstance()
+                val snapshot = firestoreDb.collection("announcements").get().await()
+                val announcementsList = snapshot.documents.mapNotNull { doc ->
+                    val rawClassrooms = (doc.get("targetClassrooms") as? List<*>)?.filterIsInstance<String>() ?: emptyList()
+                    com.example.tutor.data.LocalAnnouncement(
+                        id = doc.getString("id") ?: doc.id,
+                        title = doc.getString("title") ?: "",
+                        content = doc.getString("content") ?: "",
+                        teacherId = doc.getString("teacherId") ?: "",
+                        teacherName = doc.getString("teacherName") ?: "Docente",
+                        subject = doc.getString("subject") ?: "General",
+                        targetType = doc.getString("targetType") ?: "GLOBAL",
+                        grade = doc.getString("grade") ?: "",
+                        section = doc.getString("section") ?: "",
+                        priority = doc.getString("priority") ?: "NORMAL",
+                        createdAt = doc.getLong("createdAt") ?: System.currentTimeMillis()
+                    )
+                }
+                if (announcementsList.isNotEmpty()) {
+                    kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                        localAnnouncementDao.clearAll()
+                        localAnnouncementDao.insertAnnouncements(announcementsList)
+                    }
+                }
+            } catch (e: Exception) {
+                // Offline fallback - will use the existing announcements flow from database
+            }
+        }
+    }
+
+    // Real Study Plans from Room
+    val studyPlanDao = remember { StudyDatabase.getDatabase(context).studyPlanDao() }
+    val studyPlans by studyPlanDao.getStudyPlansWithTopics(currentUserId).collectAsState(initial = emptyList())
+
+    // Real Tasks from Firestore
+    val taskRepository = remember { TaskRepository() }
+    val tasks by taskRepository.getTasksFlow().collectAsState(initial = emptyList())
+
+    // Filter tasks and announcements for the current student's classroom
+    val studentClassroom = "$studentGrade$studentSection"
+    val visibleTasksForStudent = remember(tasks, studentGrade, studentSection) {
+        tasks.filter { task ->
+            val matchSpecific = task.targetType == "SPECIFIC" && task.grade == studentGrade && task.section == studentSection
+            val matchGlobal = task.targetType == "GLOBAL" && (task.targetClassrooms.isEmpty() || task.targetClassrooms.contains(studentClassroom))
+            matchSpecific || matchGlobal
+        }
+    }
+
+    val visibleAnnouncements = remember(localAnnouncements, studentGrade, studentSection) {
+        localAnnouncements.filter { announcement ->
+            val matchSpecific = announcement.targetType == "SPECIFIC" && announcement.grade == studentGrade && announcement.section == studentSection
+            val matchGlobal = announcement.targetType == "GLOBAL"
+            matchSpecific || matchGlobal
+        }
+    }
+
+    // Computed real statistics (no dummy numbers)
+    val completedTopicsCount = studyPlans.sumOf { it.topics.count { t -> t.status == "LOGRADO" || t.status == "COMPLETED" } }
+    val completedTasksCount = visibleTasksForStudent.count { it.completedBy.contains(currentUserId) }
+    val calculatedScore = (completedTopicsCount * 100) + (completedTasksCount * 50)
+    val calculatedLevel = 1 + (calculatedScore / 250)
+    val progressToNextLevel = ((calculatedScore % 250).toFloat() / 250f).coerceIn(0f, 1f)
+
+    if (role == "docente") {
+        TeacherDashboard(
+            modifier = modifier,
+            authViewModel = authViewModel,
+            onLogout = onLogout
+        )
+        return
+    }
+
+    if (showProgressDialog) {
+        ProgressDialog(
+            plans = studyPlans,
+            tasks = tasks,
+            currentUserId = currentUserId,
+            onDismiss = { showProgressDialog = false }
+        )
+    }
+
+    if (showAchievementsDialog) {
+        AchievementsDialog(
+            plans = studyPlans,
+            tasks = tasks,
+            currentUserId = currentUserId,
+            onDismiss = { showAchievementsDialog = false }
+        )
+    }
+
     Scaffold(
         modifier = modifier.fillMaxSize(),
         bottomBar = { 
-            if (selectedChatUser == null) {
+            if (selectedChatUser == null && !showTasksScreen) {
                 StudentBottomNavigation(selectedTab) { selectedTab = it }
             }
         }
     ) { innerPadding ->
-        if (selectedTab == "TutorIA") {
+        if (showTasksScreen) {
+            TasksScreen(
+                modifier = Modifier.padding(innerPadding),
+                isTeacher = (role == "docente"),
+                onBack = { showTasksScreen = false }
+            )
+        } else if (selectedTab == "TutorIA") {
             com.example.tutor.ui.AITutorScreen(
                 modifier = Modifier.padding(innerPadding),
                 initialTab = tutorInitialTab,
@@ -76,260 +221,394 @@ fun StudentDashboard(
             Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(BackgroundGray)
+                    .background(ThemeColors.background)
                     .padding(innerPadding)
                     .verticalScroll(rememberScrollState())
             ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(280.dp)
-            ) {
-                DashboardTopDecoration()
-                
-                Column(
+                Box(
                     modifier = Modifier
-                        .fillMaxSize()
-                        .padding(horizontal = 24.dp, vertical = 24.dp)
+                        .fillMaxWidth()
+                        .height(280.dp)
                 ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.End
-                    ) {
-                        IconButton(onClick = { /* TODO */ }) {
-                            Icon(Icons.Outlined.Notifications, contentDescription = "Notificaciones", tint = Color.White)
-                        }
-                    }
+                    DashboardTopDecoration()
                     
-                    Spacer(modifier = Modifier.height(16.dp))
-                    
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically
+                    Column(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(horizontal = 24.dp, vertical = 24.dp)
                     ) {
-                        Box(
-                            modifier = Modifier
-                                .size(80.dp)
-                                .clip(CircleShape)
-                                .background(Color.LightGray)
-                                .border(3.dp, YellowSecondary, CircleShape),
-                            contentAlignment = Alignment.Center
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Icon(Icons.Filled.Person, contentDescription = null, modifier = Modifier.size(60.dp), tint = Color.White)
+                            Surface(
+                                shape = RoundedCornerShape(12.dp),
+                                color = if (role == "docente") YellowSecondary else Color.White.copy(alpha = 0.25f)
+                            ) {
+                                Text(
+                                    text = if (role == "docente") "Panel Docente" else "Panel Estudiante",
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (role == "docente") BlackTertiary else Color.White
+                                )
+                            }
+
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                IconButton(onClick = { ThemeState.toggleTheme() }) {
+                                    Icon(
+                                        painter = painterResource(id = if (ThemeState.isDarkTheme) android.R.drawable.ic_menu_day else android.R.drawable.ic_menu_compass),
+                                        contentDescription = "Cambiar Modo Oscuro",
+                                        tint = Color.White
+                                    )
+                                }
+                                IconButton(onClick = { /* Notificaciones */ }) {
+                                    Icon(Icons.Outlined.Notifications, contentDescription = "Notificaciones", tint = Color.White)
+                                }
+                            }
                         }
                         
-                        Spacer(modifier = Modifier.width(16.dp))
+                        Spacer(modifier = Modifier.height(16.dp))
                         
-                        Column {
-                            val user = com.google.firebase.auth.FirebaseAuth.getInstance().currentUser
-                            val displayName = user?.displayName ?: "Estudiante"
-                            Text(
-                                text = "¡Hola, $displayName!",
-                                fontSize = 24.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = Color.White
-                            )
-                            Text(
-                                text = "Cada paso que das hoy\nte acerca a tu mejor versión.",
-                                fontSize = 14.sp,
-                                color = Color.White.copy(alpha = 0.9f)
-                            )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(76.dp)
+                                    .clip(CircleShape)
+                                    .background(Color.White.copy(alpha = 0.2f))
+                                    .border(3.dp, if (role == "docente") YellowSecondary else Color.White, CircleShape),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = if (role == "docente") Icons.Filled.School else Icons.Filled.Person,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(48.dp),
+                                    tint = Color.White
+                                )
+                            }
+                            
+                            Spacer(modifier = Modifier.width(16.dp))
+                            
+                            Column {
+                                Text(
+                                    text = "¡Hola, $displayName!",
+                                    fontSize = 22.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.White
+                                )
+                                Text(
+                                    text = if (role == "docente") "Gestiona las tareas y actividades escolares de tus estudiantes." else "Aprende a tu ritmo con la IA y entrega tus actividades a tiempo.",
+                                    fontSize = 13.sp,
+                                    color = Color.White.copy(alpha = 0.9f),
+                                    lineHeight = 16.sp
+                                )
+                            }
                         }
                     }
                 }
-            }
-            
-            // Score and Level
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 24.dp)
-                    .offset(y = (-40).dp),
-                horizontalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
-                Card(
-                    modifier = Modifier.weight(1f),
-                    colors = CardDefaults.cardColors(containerColor = BlackTertiary),
-                    shape = RoundedCornerShape(16.dp),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+                
+                // Real Score and Level Cards
+                val accentAmber = if (ThemeState.isDarkTheme) YellowSecondary else Color(0xFFD97706)
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 24.dp)
+                        .offset(y = (-40).dp),
+                    horizontalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
-                    Column(
-                        modifier = Modifier.padding(16.dp)
+                    Card(
+                        modifier = Modifier.weight(1f),
+                        colors = CardDefaults.cardColors(
+                            containerColor = if (ThemeState.isDarkTheme) ThemeColors.cardSurface else BlackTertiary
+                        ),
+                        shape = RoundedCornerShape(16.dp),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
                     ) {
-                        Text("Puntaje", color = Color.White, fontSize = 14.sp)
-                        Row(verticalAlignment = Alignment.Bottom) {
-                            Text("850", color = YellowSecondary, fontSize = 28.sp, fontWeight = FontWeight.Bold)
-                            Icon(Icons.Filled.Star, contentDescription = null, tint = YellowSecondary, modifier = Modifier.size(20.dp))
+                        Column(
+                            modifier = Modifier.padding(16.dp)
+                        ) {
+                            Text("Puntaje Académico", color = if (ThemeState.isDarkTheme) ThemeColors.textSecondary else Color.White, fontSize = 12.sp)
+                            Row(verticalAlignment = Alignment.Bottom) {
+                                Text("$calculatedScore", color = accentAmber, fontSize = 26.sp, fontWeight = FontWeight.Bold)
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Icon(Icons.Filled.Star, contentDescription = null, tint = accentAmber, modifier = Modifier.size(18.dp))
+                            }
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                Text("Nivel $calculatedLevel", color = if (ThemeState.isDarkTheme) ThemeColors.textPrimary else Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                Text("${(progressToNextLevel * 100).toInt()}%", color = accentAmber, fontSize = 11.sp)
+                            }
+                            Spacer(modifier = Modifier.height(4.dp))
+                            LinearProgressIndicator(
+                                progress = { progressToNextLevel },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(4.dp)
+                                    .clip(RoundedCornerShape(2.dp)),
+                                color = accentAmber,
+                                trackColor = if (ThemeState.isDarkTheme) ThemeColors.divider else Color.White.copy(alpha = 0.2f)
+                            )
                         }
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text("Nivel 4", color = Color.White, fontSize = 12.sp)
-                        LinearProgressIndicator(
-                            progress = { 0.7f },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(4.dp)
-                                .clip(RoundedCornerShape(2.dp)),
-                            color = YellowSecondary,
-                            trackColor = Color.DarkGray
+                    }
+                    
+                    Card(
+                        modifier = Modifier.weight(1f),
+                        colors = CardDefaults.cardColors(containerColor = ThemeColors.cardSurface),
+                        shape = RoundedCornerShape(16.dp),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(16.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(44.dp)
+                                    .clip(CircleShape)
+                                    .background(if (ThemeState.isDarkTheme) YellowSecondary.copy(alpha = 0.2f) else Color(0xFFFEF3C7))
+                                    .border(1.5.dp, accentAmber, CircleShape),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(Icons.Filled.EmojiEvents, contentDescription = null, tint = accentAmber, modifier = Modifier.size(24.dp))
+                            }
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Column {
+                                Text(
+                                    text = if (calculatedScore > 0) "¡Gran avance!" else "¡Bienvenido!",
+                                    color = ThemeColors.primary,
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Text(
+                                    text = if (calculatedScore > 0) "$completedTopicsCount temas y $completedTasksCount tareas logradas." else "Comienza tu primer tema de estudio hoy.",
+                                    color = ThemeColors.textSecondary,
+                                    fontSize = 10.sp,
+                                    lineHeight = 12.sp
+                                )
+                            }
+                        }
+                    }
+                }
+                
+                // UNIFIED TOOLS SECTION (2x2 Grid)
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 24.dp)
+                        .offset(y = (-20).dp)
+                ) {
+                    Text(
+                        text = "Herramientas",
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = ThemeColors.textPrimary
+                    )
+                    Spacer(modifier = Modifier.height(14.dp))
+                    
+                    // Row 1: Unified Aprendizaje (IA + Planes) & Tareas Escolares
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                        ToolCard(
+                            title = "Aprendizaje",
+                            subtitle = "Tutor IA y Planes\nde estudio guiados",
+                            badgeText = "IA Integrada",
+                            icon = Icons.Filled.AutoAwesome,
+                            backgroundColor = ThemeColors.primary,
+                            contentColor = ThemeColors.onPrimary,
+                            modifier = Modifier.weight(1f),
+                            onClick = {
+                                tutorInitialTab = 0
+                                selectedTab = "TutorIA"
+                            }
+                        )
+                        ToolCard(
+                            title = if (role == "docente") "Gestionar Tareas" else "Tareas",
+                            subtitle = if (role == "docente") "Crea y asigna\nactividades" else "Revisa y entrega\ntus actividades",
+                            badgeText = if (visibleTasksForStudent.isNotEmpty()) "${visibleTasksForStudent.count { !it.completedBy.contains(currentUserId) }} activas" else null,
+                            icon = Icons.Filled.Assignment,
+                            backgroundColor = if (ThemeState.isDarkTheme) ThemeColors.cardSurface else BlackTertiary,
+                            contentColor = if (ThemeState.isDarkTheme) ThemeColors.textPrimary else Color.White,
+                            modifier = Modifier.weight(1f),
+                            onClick = { showTasksScreen = true }
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    // Row 2: Mi progreso & Logros
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                        ToolCard(
+                            title = "Mi progreso",
+                            subtitle = "Revisa tu avance\ny estadísticas reales",
+                            icon = Icons.Filled.BarChart,
+                            backgroundColor = if (ThemeState.isDarkTheme) ThemeColors.cardSurface else YellowSecondary,
+                            contentColor = if (ThemeState.isDarkTheme) ThemeColors.textPrimary else BlackTertiary,
+                            modifier = Modifier.weight(1f),
+                            onClick = { showProgressDialog = true }
+                        )
+                        ToolCard(
+                            title = "Logros",
+                            subtitle = "Desbloquea medallas\npor tus metas",
+                            icon = Icons.Filled.EmojiEvents,
+                            backgroundColor = if (ThemeState.isDarkTheme) ThemeColors.cardSurface else BlackTertiary,
+                            contentColor = if (ThemeState.isDarkTheme) ThemeColors.textPrimary else Color.White,
+                            modifier = Modifier.weight(1f),
+                            onClick = { showAchievementsDialog = true }
                         )
                     }
                 }
                 
-                Card(
-                    modifier = Modifier.weight(1f),
-                    colors = CardDefaults.cardColors(containerColor = Color.White),
-                    shape = RoundedCornerShape(16.dp),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+                // Real Upcoming Activities Section (From Firestore Tasks)
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 24.dp)
                 ) {
+                    // SECTION 1: Avisos de Profesores (Cargados de Room localmente)
                     Row(
-                        modifier = Modifier.padding(16.dp),
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Box(
-                            modifier = Modifier
-                                .size(48.dp)
-                                .clip(CircleShape)
-                                .background(YellowSecondary.copy(alpha = 0.2f))
-                                .border(2.dp, YellowSecondary, CircleShape),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(Icons.Filled.Star, contentDescription = null, tint = YellowSecondary, modifier = Modifier.size(28.dp))
-                        }
-                        Spacer(modifier = Modifier.width(12.dp))
-                        Column {
-                            Text("¡Vas muy bien!", color = RedPrimary, fontSize = 14.sp, fontWeight = FontWeight.Bold)
-                            Text("Sigue así para\nalcanzar el siguiente nivel.", color = TextGray, fontSize = 10.sp, lineHeight = 12.sp)
+                        Text(
+                            text = "Avisos de Profesores",
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = ThemeColors.textPrimary
+                        )
+                        if (visibleAnnouncements.isNotEmpty()) {
+                            Surface(
+                                shape = RoundedCornerShape(8.dp),
+                                color = Color(0xFFE8F5E9)
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(Icons.Filled.OfflinePin, contentDescription = null, tint = Color(0xFF2E7D32), modifier = Modifier.size(12.dp))
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text("${visibleAnnouncements.size} locales", color = Color(0xFF2E7D32), fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                                }
+                            }
                         }
                     }
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    if (visibleAnnouncements.isEmpty()) {
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(12.dp),
+                            colors = CardDefaults.cardColors(containerColor = ThemeColors.cardSurface),
+                            elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(16.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(Icons.Filled.Campaign, contentDescription = null, tint = ThemeColors.textSecondary, modifier = Modifier.size(24.dp))
+                                Spacer(modifier = Modifier.width(10.dp))
+                                Text(
+                                    text = "No hay comunicados o avisos recientes guardados.",
+                                    fontSize = 12.sp,
+                                    color = ThemeColors.textSecondary
+                                )
+                            }
+                        }
+                    } else {
+                        visibleAnnouncements.take(3).forEach { announcement ->
+                            ExpandableAnnouncementItem(announcement = announcement)
+                            Spacer(modifier = Modifier.height(8.dp))
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(20.dp))
+
+                    // SECTION 2: Tareas de Profesores (Filtradas por su aula)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "Tareas y Actividades",
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = ThemeColors.textPrimary
+                        )
+                        if (visibleTasksForStudent.isNotEmpty()) {
+                            TextButton(onClick = { showTasksScreen = true }) {
+                                Text("Ver todas (${visibleTasksForStudent.size})", color = ThemeColors.primary, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(8.dp))
+                    
+                    if (visibleTasksForStudent.isEmpty()) {
+                        // Clean slate state without dummy data
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(14.dp),
+                            colors = CardDefaults.cardColors(containerColor = ThemeColors.cardSurface),
+                            elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+                        ) {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(20.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                Icon(
+                                    Icons.Outlined.AssignmentLate,
+                                    contentDescription = null,
+                                    tint = ThemeColors.textSecondary,
+                                    modifier = Modifier.size(36.dp)
+                                )
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Text(
+                                    text = if (role == "docente") "No has asignado actividades escolares aún" else "No hay actividades escolares asignadas",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 14.sp,
+                                    color = ThemeColors.textPrimary,
+                                    textAlign = TextAlign.Center
+                                )
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(
+                                    text = if (role == "docente") "Crea la primera tarea para que tus alumnos puedan entregarla." else "Las tareas que tus profesores publiquen aparecerán aquí en tiempo real.",
+                                    fontSize = 12.sp,
+                                    color = ThemeColors.textSecondary,
+                                    textAlign = TextAlign.Center
+                                )
+                                if (role == "docente") {
+                                    Spacer(modifier = Modifier.height(12.dp))
+                                    Button(
+                                        onClick = { showTasksScreen = true },
+                                        shape = RoundedCornerShape(10.dp),
+                                        colors = ButtonDefaults.buttonColors(containerColor = ThemeColors.primary, contentColor = ThemeColors.onPrimary)
+                                    ) {
+                                        Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        Text("Crear Tarea Ahora", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = ThemeColors.onPrimary)
+                                    }
+                                }
+                            }
+                        }
+                    } else {
+                        // Show top 3 actual tasks
+                        visibleTasksForStudent.take(3).forEach { task ->
+                            val isCompleted = task.completedBy.contains(currentUserId)
+                            RealTaskActivityItem(
+                                task = task,
+                                isCompleted = isCompleted,
+                                onClick = { showTasksScreen = true }
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(32.dp))
                 }
             }
-            
-            // Tools Section
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 24.dp)
-                    .offset(y = (-20).dp)
-            ) {
-                Text(
-                    text = "Herramientas",
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = BlackTertiary
-                )
-                Spacer(modifier = Modifier.height(16.dp))
-                
-                // Using rows for the grid to keep it scrollable in Column
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                    ToolCard(
-                        title = "Aprendizaje",
-                        subtitle = "Estudia los temas\nde tus cursos",
-                        icon = Icons.Filled.MenuBook,
-                        backgroundColor = RedPrimary,
-                        contentColor = Color.White,
-                        modifier = Modifier.weight(1f),
-                        onClick = {
-                            tutorInitialTab = 0
-                            selectedTab = "TutorIA"
-                        }
-                    )
-                    ToolCard(
-                        title = "Consultar",
-                        subtitle = "Pregunta a la IA\ntus dudas",
-                        icon = Icons.Filled.Psychology,
-                        backgroundColor = YellowSecondary,
-                        contentColor = BlackTertiary,
-                        modifier = Modifier.weight(1f),
-                        onClick = {
-                            tutorInitialTab = 1
-                            selectedTab = "TutorIA"
-                        }
-                    )
-                    ToolCard(
-                        title = "Tareas",
-                        subtitle = "Revisa y entrega\ntus actividades",
-                        icon = Icons.Filled.Assignment,
-                        backgroundColor = BlackTertiary,
-                        contentColor = Color.White,
-                        modifier = Modifier.weight(1f)
-                    )
-                }
-                Spacer(modifier = Modifier.height(16.dp))
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                    ToolCard(
-                        title = "Plan de estudio",
-                        subtitle = "Tu ruta personalizada\nde aprendizaje",
-                        icon = Icons.Filled.AdsClick,
-                        backgroundColor = YellowSecondary,
-                        contentColor = BlackTertiary,
-                        modifier = Modifier.weight(1f),
-                        onClick = {
-                            tutorInitialTab = 0
-                            selectedTab = "TutorIA"
-                        }
-                    )
-                    ToolCard(
-                        title = "Mi progreso",
-                        subtitle = "Revisa tu avance\npor materia",
-                        icon = Icons.Filled.BarChart,
-                        backgroundColor = BlackTertiary,
-                        contentColor = Color.White,
-                        modifier = Modifier.weight(1f)
-                    )
-                    ToolCard(
-                        title = "Logros",
-                        subtitle = "Desbloquea medallas\ny recompensas",
-                        icon = Icons.Filled.EmojiEvents,
-                        backgroundColor = RedPrimary,
-                        contentColor = Color.White,
-                        modifier = Modifier.weight(1f)
-                    )
-                }
-            }
-            
-            // Upcoming Activities Section
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 24.dp)
-            ) {
-                Text(
-                    text = "Próximas actividades",
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = BlackTertiary
-                )
-                Spacer(modifier = Modifier.height(16.dp))
-                
-                ActivityItem(
-                    title = "Matemáticas",
-                    subtitle = "Resolver ejercicios de ecuaciones",
-                    date = "Hoy",
-                    icon = Icons.Filled.Calculate,
-                    iconTint = RedPrimary,
-                    iconBg = RedPrimary.copy(alpha = 0.1f)
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                ActivityItem(
-                    title = "Historia",
-                    subtitle = "Leer capítulo 4 y responder preguntas",
-                    date = "Mañana",
-                    icon = Icons.Filled.DateRange,
-                    iconTint = YellowSecondary,
-                    iconBg = YellowSecondary.copy(alpha = 0.2f)
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                ActivityItem(
-                    title = "Ciencia",
-                    subtitle = "Entrega de informe: El ecosistema",
-                    date = "24 may",
-                    icon = Icons.Filled.Science,
-                    iconTint = Color.White,
-                    iconBg = BlackTertiary
-                )
-                Spacer(modifier = Modifier.height(24.dp))
-            }
-        }
         }
     }
 }
@@ -341,79 +620,251 @@ fun ToolCard(
     icon: ImageVector,
     backgroundColor: Color,
     contentColor: Color,
+    badgeText: String? = null,
     modifier: Modifier = Modifier,
     onClick: () -> Unit = {}
 ) {
     Card(
-        modifier = modifier.height(140.dp).clickable { onClick() },
+        modifier = modifier
+            .height(130.dp)
+            .clickable { onClick() },
         colors = CardDefaults.cardColors(containerColor = backgroundColor),
         shape = RoundedCornerShape(16.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 3.dp)
     ) {
         Column(
-            modifier = Modifier.fillMaxSize().padding(12.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(14.dp),
+            verticalArrangement = Arrangement.SpaceBetween
         ) {
-            Icon(icon, contentDescription = title, tint = contentColor, modifier = Modifier.size(40.dp))
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(
-                text = title,
-                color = contentColor,
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Bold,
-                textAlign = TextAlign.Center
-            )
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = subtitle,
-                color = contentColor.copy(alpha = 0.8f),
-                fontSize = 9.sp,
-                textAlign = TextAlign.Center,
-                lineHeight = 10.sp
-            )
-            Spacer(modifier = Modifier.height(4.dp))
-            Icon(Icons.Filled.ChevronRight, contentDescription = null, tint = contentColor, modifier = Modifier.size(16.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.Top
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(36.dp)
+                        .clip(CircleShape)
+                        .background(contentColor.copy(alpha = 0.2f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(icon, contentDescription = null, tint = contentColor, modifier = Modifier.size(20.dp))
+                }
+
+                if (badgeText != null) {
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = contentColor.copy(alpha = 0.25f)
+                    ) {
+                        Text(
+                            text = badgeText,
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                            fontSize = 9.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = contentColor
+                        )
+                    }
+                }
+            }
+            
+            Column {
+                Text(
+                    text = title,
+                    color = contentColor,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold
+                )
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(
+                    text = subtitle,
+                    color = contentColor.copy(alpha = 0.85f),
+                    fontSize = 11.sp,
+                    lineHeight = 13.sp
+                )
+            }
         }
     }
 }
 
 @Composable
-fun ActivityItem(
-    title: String,
-    subtitle: String,
-    date: String,
-    icon: ImageVector,
-    iconTint: Color,
-    iconBg: Color
+fun ExpandableAnnouncementItem(announcement: com.example.tutor.data.LocalAnnouncement) {
+    var isExpanded by remember { mutableStateOf(false) }
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { isExpanded = !isExpanded },
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(containerColor = ThemeColors.cardSurface),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+    ) {
+        Column(modifier = Modifier.padding(14.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Row(modifier = Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        modifier = Modifier
+                            .size(36.dp)
+                            .clip(CircleShape)
+                            .background(ThemeColors.primary.copy(alpha = 0.15f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.Campaign,
+                            contentDescription = null,
+                            tint = ThemeColors.primary,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Column {
+                        Text(
+                            text = announcement.title,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = ThemeColors.textPrimary
+                        )
+                        Text(
+                            text = "${announcement.subject} • ${announcement.teacherName}",
+                            fontSize = 11.sp,
+                            color = ThemeColors.textSecondary
+                        )
+                    }
+                }
+                Spacer(modifier = Modifier.width(8.dp))
+                Surface(
+                    shape = RoundedCornerShape(4.dp),
+                    color = when (announcement.priority) {
+                        "URGENTE" -> ThemeColors.primary.copy(alpha = 0.15f)
+                        "IMPORTANTE" -> YellowSecondary.copy(alpha = 0.3f)
+                        else -> ThemeColors.background
+                    }
+                ) {
+                    Text(
+                        text = announcement.priority,
+                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                        fontSize = 9.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = when (announcement.priority) {
+                            "URGENTE" -> ThemeColors.primary
+                            "IMPORTANTE" -> Color(0xFFB8860B)
+                            else -> ThemeColors.textPrimary
+                        }
+                    )
+                }
+            }
+            
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = announcement.content,
+                fontSize = 12.sp,
+                color = ThemeColors.textPrimary.copy(alpha = 0.85f),
+                maxLines = if (isExpanded) 100 else 2,
+                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                lineHeight = 16.sp
+            )
+            
+            Spacer(modifier = Modifier.height(6.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = if (isExpanded) "Toca para contraer" else "Toca para leer más",
+                    fontSize = 10.sp,
+                    color = ThemeColors.primary,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Filled.CloudDone,
+                        contentDescription = "Guardado localmente",
+                        tint = Color(0xFF2E7D32),
+                        modifier = Modifier.size(12.dp)
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = "Guardado local",
+                        fontSize = 10.sp,
+                        color = Color(0xFF2E7D32)
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun RealTaskActivityItem(
+    task: TaskModel,
+    isCompleted: Boolean,
+    onClick: () -> Unit
 ) {
     Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onClick() },
         shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(containerColor = ThemeColors.cardSurface),
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
         Row(
-            modifier = Modifier.padding(16.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(14.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Box(
                 modifier = Modifier
                     .size(40.dp)
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(iconBg),
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(
+                        if (isCompleted) Color(0xFFE8F5E9) else ThemeColors.primary.copy(alpha = 0.15f)
+                    ),
                 contentAlignment = Alignment.Center
             ) {
-                Icon(icon, contentDescription = null, tint = iconTint, modifier = Modifier.size(24.dp))
+                Icon(
+                    imageVector = if (isCompleted) Icons.Filled.CheckCircle else Icons.Filled.Assignment,
+                    contentDescription = null,
+                    tint = if (isCompleted) Color(0xFF2E7D32) else ThemeColors.primary,
+                    modifier = Modifier.size(22.dp)
+                )
             }
-            Spacer(modifier = Modifier.width(16.dp))
+            Spacer(modifier = Modifier.width(12.dp))
             Column(modifier = Modifier.weight(1f)) {
-                Text(text = title, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = BlackTertiary)
-                Text(text = subtitle, fontSize = 12.sp, color = TextGray)
+                Text(
+                    text = task.title,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = ThemeColors.textPrimary
+                )
+                Text(
+                    text = "${task.subject} • Docente: ${task.teacherName.ifBlank { "Profesor" }}",
+                    fontSize = 11.sp,
+                    color = ThemeColors.textSecondary
+                )
             }
             Spacer(modifier = Modifier.width(8.dp))
-            Text(text = date, fontSize = 12.sp, color = TextGray)
-            Icon(Icons.Filled.ChevronRight, contentDescription = null, tint = TextGray, modifier = Modifier.size(20.dp))
+            Column(horizontalAlignment = Alignment.End) {
+                Text(
+                    text = if (task.dueDate.isNotBlank()) task.dueDate else "Pendiente",
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = if (isCompleted) Color(0xFF2E7D32) else ThemeColors.primary
+                )
+                Text(
+                    text = if (isCompleted) "Entregada" else "Por entregar",
+                    fontSize = 10.sp,
+                    color = ThemeColors.textSecondary
+                )
+            }
+            Spacer(modifier = Modifier.width(4.dp))
+            Icon(Icons.Filled.ChevronRight, contentDescription = null, tint = ThemeColors.textSecondary, modifier = Modifier.size(18.dp))
         }
     }
 }
@@ -421,8 +872,8 @@ fun ActivityItem(
 @Composable
 fun StudentBottomNavigation(selectedTab: String, onTabSelected: (String) -> Unit) {
     NavigationBar(
-        containerColor = Color.White,
-        contentColor = TextGray,
+        containerColor = ThemeColors.surface,
+        contentColor = ThemeColors.textSecondary,
         tonalElevation = 8.dp
     ) {
         NavigationBarItem(
@@ -431,24 +882,14 @@ fun StudentBottomNavigation(selectedTab: String, onTabSelected: (String) -> Unit
             selected = selectedTab == "Inicio",
             onClick = { onTabSelected("Inicio") },
             colors = NavigationBarItemDefaults.colors(
-                selectedIconColor = RedPrimary,
-                selectedTextColor = RedPrimary,
-                indicatorColor = Color.White,
-                unselectedIconColor = TextGray,
-                unselectedTextColor = TextGray
+                selectedIconColor = ThemeColors.primary,
+                selectedTextColor = ThemeColors.primary,
+                indicatorColor = ThemeColors.cardSurface,
+                unselectedIconColor = ThemeColors.textSecondary,
+                unselectedTextColor = ThemeColors.textSecondary
             )
         )
-        NavigationBarItem(
-            icon = { Icon(Icons.Outlined.MenuBook, contentDescription = "Cursos") },
-            label = { Text("Cursos", fontSize = 10.sp) },
-            selected = selectedTab == "Cursos",
-            onClick = { onTabSelected("Cursos") },
-            colors = NavigationBarItemDefaults.colors(
-                unselectedIconColor = TextGray,
-                unselectedTextColor = TextGray
-            )
-        )
-        // Central Item (Tutor IA)
+        // Central Item (Tutor IA & Aprendizaje)
         Box(
             modifier = Modifier
                 .weight(1f)
@@ -460,23 +901,23 @@ fun StudentBottomNavigation(selectedTab: String, onTabSelected: (String) -> Unit
                     modifier = Modifier
                         .size(48.dp)
                         .clip(CircleShape)
-                        .background(if (selectedTab == "TutorIA") YellowSecondary else RedPrimary)
+                        .background(if (selectedTab == "TutorIA") YellowSecondary else ThemeColors.primary)
                         .clickable { onTabSelected("TutorIA") },
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
-                        Icons.Filled.ChatBubbleOutline,
+                        Icons.Filled.AutoAwesome,
                         contentDescription = "Tutor IA",
-                        tint = if (selectedTab == "TutorIA") BlackTertiary else Color.White,
+                        tint = if (selectedTab == "TutorIA" || ThemeState.isDarkTheme) BlackTertiary else Color.White,
                         modifier = Modifier.size(24.dp)
                     )
                 }
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
-                    "Tutor IA",
+                    "Aprendizaje",
                     fontSize = 10.sp,
                     fontWeight = if (selectedTab == "TutorIA") FontWeight.Bold else FontWeight.Normal,
-                    color = if (selectedTab == "TutorIA") RedPrimary else TextGray
+                    color = if (selectedTab == "TutorIA") ThemeColors.primary else ThemeColors.textSecondary
                 )
             }
         }
@@ -487,8 +928,11 @@ fun StudentBottomNavigation(selectedTab: String, onTabSelected: (String) -> Unit
             selected = selectedTab == "Mensajes",
             onClick = { onTabSelected("Mensajes") },
             colors = NavigationBarItemDefaults.colors(
-                unselectedIconColor = TextGray,
-                unselectedTextColor = TextGray
+                selectedIconColor = ThemeColors.primary,
+                selectedTextColor = ThemeColors.primary,
+                indicatorColor = ThemeColors.cardSurface,
+                unselectedIconColor = ThemeColors.textSecondary,
+                unselectedTextColor = ThemeColors.textSecondary
             )
         )
         NavigationBarItem(
@@ -497,8 +941,11 @@ fun StudentBottomNavigation(selectedTab: String, onTabSelected: (String) -> Unit
             selected = selectedTab == "Perfil",
             onClick = { onTabSelected("Perfil") },
             colors = NavigationBarItemDefaults.colors(
-                unselectedIconColor = TextGray,
-                unselectedTextColor = TextGray
+                selectedIconColor = ThemeColors.primary,
+                selectedTextColor = ThemeColors.primary,
+                indicatorColor = ThemeColors.cardSurface,
+                unselectedIconColor = ThemeColors.textSecondary,
+                unselectedTextColor = ThemeColors.textSecondary
             )
         )
     }
@@ -506,12 +953,16 @@ fun StudentBottomNavigation(selectedTab: String, onTabSelected: (String) -> Unit
 
 @Composable
 fun DashboardTopDecoration(modifier: Modifier = Modifier) {
+    val primaryColor = ThemeColors.primary
+    val secondaryColor = YellowSecondary
+    val bgColor = ThemeColors.background
+
     Canvas(modifier = modifier.fillMaxWidth().height(280.dp)) {
         val w = size.width
         val h = size.height
         
-        // White base
-        drawRect(Color.White)
+        // Base
+        drawRect(bgColor)
         
         // Yellow accent shape
         val yellowPath = Path().apply {
@@ -521,16 +972,16 @@ fun DashboardTopDecoration(modifier: Modifier = Modifier) {
             quadraticTo(w * 0.5f, h * 0.7f, 0f, h * 0.9f)
             close()
         }
-        drawPath(yellowPath, YellowSecondary)
+        drawPath(yellowPath, secondaryColor)
 
-        // Red foreground shape
-        val redPath = Path().apply {
+        // Primary foreground shape
+        val primaryPath = Path().apply {
             moveTo(0f, 0f)
             lineTo(w, 0f)
             lineTo(w, h * 0.55f)
             quadraticTo(w * 0.5f, h * 0.65f, 0f, h * 0.85f)
             close()
         }
-        drawPath(redPath, RedPrimary)
+        drawPath(primaryPath, primaryColor)
     }
 }
