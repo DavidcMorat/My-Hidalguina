@@ -37,6 +37,7 @@ fun StudentDashboard(
     onLogout: () -> Unit = {}
 ) {
     var selectedTab by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf("Inicio") }
+    var tutorInitialTab by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(0) }
     var selectedChatUser by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf<com.example.chat.ChatUser?>(null) }
     
     Scaffold(
@@ -47,7 +48,13 @@ fun StudentDashboard(
             }
         }
     ) { innerPadding ->
-        if (selectedTab == "Mensajes") {
+        if (selectedTab == "TutorIA") {
+            com.example.tutor.ui.AITutorScreen(
+                modifier = Modifier.padding(innerPadding),
+                initialTab = tutorInitialTab,
+                onBack = { selectedTab = "Inicio" }
+            )
+        } else if (selectedTab == "Mensajes") {
             if (selectedChatUser != null) {
                 com.example.chat.ChatDetailScreen(
                     user = selectedChatUser!!,
@@ -220,7 +227,11 @@ fun StudentDashboard(
                         icon = Icons.Filled.MenuBook,
                         backgroundColor = RedPrimary,
                         contentColor = Color.White,
-                        modifier = Modifier.weight(1f)
+                        modifier = Modifier.weight(1f),
+                        onClick = {
+                            tutorInitialTab = 0
+                            selectedTab = "TutorIA"
+                        }
                     )
                     ToolCard(
                         title = "Consultar",
@@ -228,7 +239,11 @@ fun StudentDashboard(
                         icon = Icons.Filled.Psychology,
                         backgroundColor = YellowSecondary,
                         contentColor = BlackTertiary,
-                        modifier = Modifier.weight(1f)
+                        modifier = Modifier.weight(1f),
+                        onClick = {
+                            tutorInitialTab = 1
+                            selectedTab = "TutorIA"
+                        }
                     )
                     ToolCard(
                         title = "Tareas",
@@ -247,7 +262,11 @@ fun StudentDashboard(
                         icon = Icons.Filled.AdsClick,
                         backgroundColor = YellowSecondary,
                         contentColor = BlackTertiary,
-                        modifier = Modifier.weight(1f)
+                        modifier = Modifier.weight(1f),
+                        onClick = {
+                            tutorInitialTab = 0
+                            selectedTab = "TutorIA"
+                        }
                     )
                     ToolCard(
                         title = "Mi progreso",
@@ -322,10 +341,11 @@ fun ToolCard(
     icon: ImageVector,
     backgroundColor: Color,
     contentColor: Color,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit = {}
 ) {
     Card(
-        modifier = modifier.height(140.dp).clickable { },
+        modifier = modifier.height(140.dp).clickable { onClick() },
         colors = CardDefaults.cardColors(containerColor = backgroundColor),
         shape = RoundedCornerShape(16.dp),
         elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
@@ -440,14 +460,24 @@ fun StudentBottomNavigation(selectedTab: String, onTabSelected: (String) -> Unit
                     modifier = Modifier
                         .size(48.dp)
                         .clip(CircleShape)
-                        .background(RedPrimary)
-                        .clickable { },
+                        .background(if (selectedTab == "TutorIA") YellowSecondary else RedPrimary)
+                        .clickable { onTabSelected("TutorIA") },
                     contentAlignment = Alignment.Center
                 ) {
-                    Icon(Icons.Filled.ChatBubbleOutline, contentDescription = "Tutor IA", tint = Color.White, modifier = Modifier.size(24.dp))
+                    Icon(
+                        Icons.Filled.ChatBubbleOutline,
+                        contentDescription = "Tutor IA",
+                        tint = if (selectedTab == "TutorIA") BlackTertiary else Color.White,
+                        modifier = Modifier.size(24.dp)
+                    )
                 }
                 Spacer(modifier = Modifier.height(4.dp))
-                Text("Tutor IA", fontSize = 10.sp, color = TextGray)
+                Text(
+                    "Tutor IA",
+                    fontSize = 10.sp,
+                    fontWeight = if (selectedTab == "TutorIA") FontWeight.Bold else FontWeight.Normal,
+                    color = if (selectedTab == "TutorIA") RedPrimary else TextGray
+                )
             }
         }
         

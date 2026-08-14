@@ -35,6 +35,12 @@ jobs:
           echo "Keystore not provided"
         fi
 
+    - name: Create .env file
+      run: |
+        echo "GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}" > .env
+        echo "GROQ_API_KEY=${{ secrets.GROQ_API_KEY }}" >> .env
+        echo "WEB_CLIENT_ID=\"${{ secrets.WEB_CLIENT_ID || '573810459906-ct6dkb70mhln4ttfps2qt72u9ohsvvep.apps.googleusercontent.com' }}\"" >> .env
+
     - name: Build Release APK
       env:
         KEYSTORE_PATH: my-upload-key.jks
