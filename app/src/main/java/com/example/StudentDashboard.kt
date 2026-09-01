@@ -32,6 +32,7 @@ import com.example.dashboard.ProgressDialog
 import com.example.tasks.data.TaskModel
 import com.example.tasks.data.TaskRepository
 import com.example.tasks.ui.TasksScreen
+import com.example.materials.ui.MaterialsScreen
 import com.example.tutor.data.StudyDatabase
 import com.example.tutor.data.StudyPlanWithTopics
 import com.example.ui.theme.*
@@ -39,20 +40,24 @@ import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.tasks.await
 
+import com.example.ui.components.AnimatedGlassBackground
+
+
 @Composable
 fun StudentDashboard(
     modifier: Modifier = Modifier,
     authViewModel: AuthViewModel = androidx.lifecycle.viewmodel.compose.viewModel(),
     onLogout: () -> Unit = {}
 ) {
-    val context = LocalContext.current
-    val user = FirebaseAuth.getInstance().currentUser
-    val currentUserId = user?.uid ?: ""
+        val context = LocalContext.current
+        val user = FirebaseAuth.getInstance().currentUser
+        val currentUserId = user?.uid ?: ""
 
     var selectedTab by remember { mutableStateOf("Inicio") }
     var tutorInitialTab by remember { mutableStateOf(0) }
     var selectedChatUser by remember { mutableStateOf<com.example.chat.ChatUser?>(null) }
     var showTasksScreen by remember { mutableStateOf(false) }
+    var showMaterialsScreen by remember { mutableStateOf(false) }
     var showProgressDialog by remember { mutableStateOf(false) }
     var showAchievementsDialog by remember { mutableStateOf(false) }
 
@@ -178,11 +183,13 @@ fun StudentDashboard(
             onDismiss = { showAchievementsDialog = false }
         )
     }
+    AnimatedGlassBackground {
 
     Scaffold(
         modifier = modifier.fillMaxSize(),
+        containerColor = Color.Transparent,
         bottomBar = { 
-            if (selectedChatUser == null && !showTasksScreen) {
+            if (selectedChatUser == null && !showTasksScreen && !showMaterialsScreen) {
                 StudentBottomNavigation(selectedTab) { selectedTab = it }
             }
         }
@@ -192,6 +199,14 @@ fun StudentDashboard(
                 modifier = Modifier.padding(innerPadding),
                 isTeacher = (role == "docente"),
                 onBack = { showTasksScreen = false }
+            )
+        } else if (showMaterialsScreen) {
+            MaterialsScreen(
+                modifier = Modifier.padding(innerPadding),
+                isTeacher = false,
+                studentGrade = studentGrade,
+                studentSection = studentSection,
+                onBack = { showMaterialsScreen = false }
             )
         } else if (selectedTab == "TutorIA") {
             com.example.tutor.ui.AITutorScreen(
@@ -221,17 +236,14 @@ fun StudentDashboard(
             Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(ThemeColors.background)
                     .padding(innerPadding)
                     .verticalScroll(rememberScrollState())
             ) {
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(280.dp)
+                        .height(260.dp)
                 ) {
-                    DashboardTopDecoration()
-                    
                     Column(
                         modifier = Modifier
                             .fillMaxSize()
@@ -437,26 +449,73 @@ fun StudentDashboard(
                     }
                     Spacer(modifier = Modifier.height(14.dp))
 
-                    // Row 2: Mi progreso & Logros
+                    // Row 2: Materiales & Mi progreso
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
                         ToolCard(
-                            title = "Mi progreso",
-                            subtitle = "Revisa tu avance\ny estadísticas reales",
-                            icon = Icons.Filled.BarChart,
+                            title = "Materiales",
+                            subtitle = "Guías, PDFs y\nrecursos de clase",
+                            badgeText = "Recursos",
+                            icon = Icons.Filled.Folder,
                             backgroundColor = if (ThemeState.isDarkTheme) ThemeColors.cardSurface else YellowSecondary,
                             contentColor = if (ThemeState.isDarkTheme) ThemeColors.textPrimary else BlackTertiary,
                             modifier = Modifier.weight(1f),
-                            onClick = { showProgressDialog = true }
+                            onClick = { showMaterialsScreen = true }
                         )
                         ToolCard(
-                            title = "Logros",
-                            subtitle = "Desbloquea medallas\npor tus metas",
-                            icon = Icons.Filled.EmojiEvents,
+                            title = "Mi progreso",
+                            subtitle = "Revisa tu avance\ny estadísticas",
+                            icon = Icons.Filled.BarChart,
                             backgroundColor = if (ThemeState.isDarkTheme) ThemeColors.cardSurface else BlackTertiary,
                             contentColor = if (ThemeState.isDarkTheme) ThemeColors.textPrimary else Color.White,
                             modifier = Modifier.weight(1f),
-                            onClick = { showAchievementsDialog = true }
+                            onClick = { showProgressDialog = true }
                         )
+                    }
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    // Row 3: Logros y Medallas
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { showAchievementsDialog = true },
+                        shape = RoundedCornerShape(16.dp),
+                        colors = CardDefaults.cardColors(containerColor = if (ThemeState.isDarkTheme) ThemeColors.cardSurface else ThemeColors.surface),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, ThemeColors.divider)
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(38.dp)
+                                        .clip(CircleShape)
+                                        .background(YellowSecondary.copy(alpha = 0.2f)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(Icons.Filled.EmojiEvents, contentDescription = null, tint = YellowSecondary, modifier = Modifier.size(22.dp))
+                                }
+                                Spacer(modifier = Modifier.width(12.dp))
+                                Column {
+                                    Text(
+                                        text = "Medallas y Logros",
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 14.sp,
+                                        color = ThemeColors.textPrimary
+                                    )
+                                    Text(
+                                        text = "Desbloquea insignias cumpliendo metas de estudio",
+                                        fontSize = 11.sp,
+                                        color = ThemeColors.textSecondary
+                                    )
+                                }
+                            }
+                            Icon(Icons.Filled.ChevronRight, contentDescription = null, tint = ThemeColors.textSecondary)
+                        }
                     }
                 }
                 
@@ -612,15 +671,17 @@ fun StudentDashboard(
         }
     }
 }
+}
+
 
 @Composable
 fun ToolCard(
+    badgeText: String? = null,
     title: String,
     subtitle: String,
     icon: ImageVector,
     backgroundColor: Color,
     contentColor: Color,
-    badgeText: String? = null,
     modifier: Modifier = Modifier,
     onClick: () -> Unit = {}
 ) {
@@ -687,6 +748,7 @@ fun ToolCard(
         }
     }
 }
+
 
 @Composable
 fun ExpandableAnnouncementItem(announcement: com.example.tutor.data.LocalAnnouncement) {
@@ -799,6 +861,7 @@ fun ExpandableAnnouncementItem(announcement: com.example.tutor.data.LocalAnnounc
     }
 }
 
+
 @Composable
 fun RealTaskActivityItem(
     task: TaskModel,
@@ -867,89 +930,112 @@ fun RealTaskActivityItem(
             Icon(Icons.Filled.ChevronRight, contentDescription = null, tint = ThemeColors.textSecondary, modifier = Modifier.size(18.dp))
         }
     }
-}
+    }
+
 
 @Composable
 fun StudentBottomNavigation(selectedTab: String, onTabSelected: (String) -> Unit) {
-    NavigationBar(
-        containerColor = ThemeColors.surface,
-        contentColor = ThemeColors.textSecondary,
-        tonalElevation = 8.dp
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(16.dp),
+        contentAlignment = Alignment.BottomCenter
     ) {
-        NavigationBarItem(
-            icon = { Icon(Icons.Filled.Home, contentDescription = "Inicio") },
-            label = { Text("Inicio", fontSize = 10.sp, fontWeight = FontWeight.Bold) },
-            selected = selectedTab == "Inicio",
-            onClick = { onTabSelected("Inicio") },
-            colors = NavigationBarItemDefaults.colors(
-                selectedIconColor = ThemeColors.primary,
-                selectedTextColor = ThemeColors.primary,
-                indicatorColor = ThemeColors.cardSurface,
-                unselectedIconColor = ThemeColors.textSecondary,
-                unselectedTextColor = ThemeColors.textSecondary
-            )
-        )
-        // Central Item (Tutor IA & Aprendizaje)
-        Box(
-            modifier = Modifier
-                .weight(1f)
-                .padding(bottom = 8.dp),
-            contentAlignment = Alignment.Center
+        Surface(
+            shape = RoundedCornerShape(32.dp),
+            color = ThemeColors.surface, // this is our glass surface
+            border = androidx.compose.foundation.BorderStroke(1.dp, ThemeColors.divider),
+            shadowElevation = 8.dp,
+            modifier = Modifier.height(72.dp)
         ) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                NavBarItem(
+                    icon = Icons.Filled.Home,
+                    label = "Inicio",
+                    selected = selectedTab == "Inicio",
+                    onClick = { onTabSelected("Inicio") },
+                    modifier = Modifier.weight(1f)
+                )
+                
+                // Central FAB-like item
                 Box(
                     modifier = Modifier
-                        .size(48.dp)
-                        .clip(CircleShape)
-                        .background(if (selectedTab == "TutorIA") YellowSecondary else ThemeColors.primary)
-                        .clickable { onTabSelected("TutorIA") },
+                        .weight(1f)
+                        .offset(y = (-8).dp),
                     contentAlignment = Alignment.Center
                 ) {
-                    Icon(
-                        Icons.Filled.AutoAwesome,
-                        contentDescription = "Tutor IA",
-                        tint = if (selectedTab == "TutorIA" || ThemeState.isDarkTheme) BlackTertiary else Color.White,
-                        modifier = Modifier.size(24.dp)
-                    )
+                    Box(
+                        modifier = Modifier
+                            .size(56.dp)
+                            .clip(CircleShape)
+                            .background(ThemeColors.primary)
+                            .clickable { onTabSelected("TutorIA") }
+                            .border(2.dp, Color.White.copy(alpha = 0.5f), CircleShape),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            Icons.Filled.AutoAwesome,
+                            contentDescription = "Tutor IA",
+                            tint = Color.White,
+                            modifier = Modifier.size(28.dp)
+                        )
+                    }
                 }
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    "Aprendizaje",
-                    fontSize = 10.sp,
-                    fontWeight = if (selectedTab == "TutorIA") FontWeight.Bold else FontWeight.Normal,
-                    color = if (selectedTab == "TutorIA") ThemeColors.primary else ThemeColors.textSecondary
+                
+                NavBarItem(
+                    icon = Icons.Filled.Chat,
+                    label = "Mensajes",
+                    selected = selectedTab == "Mensajes",
+                    onClick = { onTabSelected("Mensajes") },
+                    modifier = Modifier.weight(1f)
+                )
+                
+                NavBarItem(
+                    icon = Icons.Filled.Person,
+                    label = "Perfil",
+                    selected = selectedTab == "Perfil",
+                    onClick = { onTabSelected("Perfil") },
+                    modifier = Modifier.weight(1f)
                 )
             }
         }
-        
-        NavigationBarItem(
-            icon = { Icon(Icons.Outlined.Chat, contentDescription = "Mensajes") },
-            label = { Text("Mensajes", fontSize = 10.sp) },
-            selected = selectedTab == "Mensajes",
-            onClick = { onTabSelected("Mensajes") },
-            colors = NavigationBarItemDefaults.colors(
-                selectedIconColor = ThemeColors.primary,
-                selectedTextColor = ThemeColors.primary,
-                indicatorColor = ThemeColors.cardSurface,
-                unselectedIconColor = ThemeColors.textSecondary,
-                unselectedTextColor = ThemeColors.textSecondary
-            )
+    }
+}
+
+
+@Composable
+fun NavBarItem(
+    icon: ImageVector,
+    label: String,
+    selected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Column(
+        modifier = modifier.clickable(onClick = onClick).padding(top = 8.dp, bottom = 4.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = label,
+            tint = if (selected) ThemeColors.primary else ThemeColors.textSecondary,
+            modifier = Modifier.size(24.dp)
         )
-        NavigationBarItem(
-            icon = { Icon(Icons.Outlined.Person, contentDescription = "Perfil") },
-            label = { Text("Perfil", fontSize = 10.sp) },
-            selected = selectedTab == "Perfil",
-            onClick = { onTabSelected("Perfil") },
-            colors = NavigationBarItemDefaults.colors(
-                selectedIconColor = ThemeColors.primary,
-                selectedTextColor = ThemeColors.primary,
-                indicatorColor = ThemeColors.cardSurface,
-                unselectedIconColor = ThemeColors.textSecondary,
-                unselectedTextColor = ThemeColors.textSecondary
-            )
+        Spacer(modifier = Modifier.height(4.dp))
+        Text(
+            text = label,
+            fontSize = 10.sp,
+            fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+            color = if (selected) ThemeColors.primary else ThemeColors.textSecondary
         )
     }
 }
+
 
 @Composable
 fun DashboardTopDecoration(modifier: Modifier = Modifier) {

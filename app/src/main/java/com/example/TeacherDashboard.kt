@@ -38,7 +38,9 @@ import com.example.tasks.data.TaskRepository
 import com.example.tasks.ui.TasksScreen
 import com.example.announcements.data.AnnouncementModel
 import com.example.announcements.data.AnnouncementRepository
+import com.example.materials.ui.MaterialsScreen
 import com.example.ui.theme.*
+import com.example.ui.components.AnimatedGlassBackground
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.tasks.await
@@ -163,6 +165,7 @@ fun TeacherDashboard(
     authViewModel: AuthViewModel = viewModel(),
     onLogout: () -> Unit = {}
 ) {
+    AnimatedGlassBackground {
     val context = LocalContext.current
     val user = FirebaseAuth.getInstance().currentUser
     val currentUserId = user?.uid ?: ""
@@ -207,6 +210,7 @@ fun TeacherDashboard(
     }
 
     Scaffold(
+        containerColor = Color.Transparent,
         modifier = modifier.fillMaxSize(),
         bottomBar = {
             if (selectedChatUser == null && currentSubScreen == "dashboard") {
@@ -259,6 +263,13 @@ fun TeacherDashboard(
                             onBack = { currentSubScreen = "dashboard" }
                         )
                     }
+                    "materiales" -> {
+                        MaterialsScreen(
+                            isTeacher = true,
+                            teachingClassrooms = teachingClassrooms,
+                            onBack = { currentSubScreen = "dashboard" }
+                        )
+                    }
                     "salones" -> {
                         TeacherClassroomsScreen(
                             teachingClassrooms = teachingClassrooms,
@@ -283,6 +294,7 @@ fun TeacherDashboard(
             }
         }
     }
+    } // End AnimatedGlassBackground
 }
 
 @Composable
@@ -321,7 +333,7 @@ fun TeacherDashboardMain(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(ThemeColors.background)
+            
             .verticalScroll(rememberScrollState())
     ) {
         // Decorative Header Banner
@@ -330,7 +342,6 @@ fun TeacherDashboardMain(
                 .fillMaxWidth()
                 .height(260.dp)
         ) {
-            TeacherDashboardTopDecoration()
             
             Column(
                 modifier = Modifier
@@ -467,52 +478,62 @@ fun TeacherDashboardMain(
                 horizontalArrangement = Arrangement.spacedBy(14.dp)
             ) {
                 ToolCard(
-                    title = "Salones",
-                    subtitle = "Monitorea tus\naulas enseñadas",
-                    icon = Icons.Filled.Class,
+                    title = "Materiales",
+                    subtitle = "Sube guías, PDFs\ny recursos de estudio",
+                    icon = Icons.Filled.Folder,
                     backgroundColor = if (ThemeState.isDarkTheme) ThemeColors.cardSurface else YellowSecondary,
                     contentColor = if (ThemeState.isDarkTheme) ThemeColors.textPrimary else BlackTertiary,
                     modifier = Modifier.weight(1f),
+                    onClick = { onNavigateSubScreen("materiales", null) }
+                )
+                ToolCard(
+                    title = "Salones",
+                    subtitle = "Monitorea tus\naulas enseñadas",
+                    icon = Icons.Filled.Class,
+                    backgroundColor = if (ThemeState.isDarkTheme) ThemeColors.cardSurface else BlackTertiary,
+                    contentColor = if (ThemeState.isDarkTheme) ThemeColors.textPrimary else Color.White,
+                    modifier = Modifier.weight(1f),
                     onClick = { onNavigateSubScreen("salones", null) }
                 )
-                // Informational decorative stats tile
-                Card(
+            }
+            Spacer(modifier = Modifier.height(14.dp))
+            // Informational decorative stats tile
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(90.dp),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = if (ThemeState.isDarkTheme) ThemeColors.cardSurface else BlackTertiary),
+                border = androidx.compose.foundation.BorderStroke(1.dp, ThemeColors.divider)
+            ) {
+                Row(
                     modifier = Modifier
-                        .weight(1f)
-                        .height(130.dp),
-                    shape = RoundedCornerShape(16.dp),
-                    colors = CardDefaults.cardColors(containerColor = if (ThemeState.isDarkTheme) ThemeColors.cardSurface else BlackTertiary),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, ThemeColors.divider)
+                        .fillMaxSize()
+                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Column(
+                    Box(
                         modifier = Modifier
-                            .fillMaxSize()
-                            .padding(14.dp),
-                        verticalArrangement = Arrangement.SpaceBetween
+                            .size(42.dp)
+                            .clip(CircleShape)
+                            .background(ThemeColors.primary.copy(alpha = 0.15f)),
+                        contentAlignment = Alignment.Center
                     ) {
-                        Box(
-                            modifier = Modifier
-                                .size(36.dp)
-                                .clip(CircleShape)
-                                .background(ThemeColors.primary.copy(alpha = 0.15f)),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(Icons.Filled.Group, contentDescription = null, tint = ThemeColors.primary, modifier = Modifier.size(20.dp))
-                        }
-                        Column {
-                            Text(
-                                text = "${teachingClassrooms.size} Salones",
-                                color = if (ThemeState.isDarkTheme) ThemeColors.textPrimary else Color.White,
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                            Text(
-                                text = "Enseñas a ${studentsList.size} estudiantes en total",
-                                color = if (ThemeState.isDarkTheme) ThemeColors.textSecondary else Color.White.copy(alpha = 0.8f),
-                                fontSize = 11.sp,
-                                lineHeight = 13.sp
-                            )
-                        }
+                        Icon(Icons.Filled.Group, contentDescription = null, tint = ThemeColors.primary, modifier = Modifier.size(24.dp))
+                    }
+                    Spacer(modifier = Modifier.width(14.dp))
+                    Column {
+                        Text(
+                            text = "${teachingClassrooms.size} Salones Asignados",
+                            color = if (ThemeState.isDarkTheme) ThemeColors.textPrimary else Color.White,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            text = "Enseñas a ${studentsList.size} estudiantes registrados en total",
+                            color = if (ThemeState.isDarkTheme) ThemeColors.textSecondary else Color.White.copy(alpha = 0.8f),
+                            fontSize = 12.sp
+                        )
                     }
                 }
             }
@@ -824,54 +845,51 @@ fun TeacherBottomNavigation(
     hasTutoria: Boolean,
     onTabSelected: (String) -> Unit
 ) {
-    NavigationBar(
-        containerColor = ThemeColors.surface,
-        contentColor = ThemeColors.textSecondary,
-        tonalElevation = 8.dp
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(16.dp),
+        contentAlignment = Alignment.BottomCenter
     ) {
-        NavigationBarItem(
-            icon = { Icon(Icons.Filled.Dashboard, contentDescription = "Inicio") },
-            label = { Text("Inicio", fontSize = 10.sp, fontWeight = FontWeight.Bold) },
-            selected = selectedTab == "Inicio",
-            onClick = { onTabSelected("Inicio") },
-            colors = NavigationBarItemDefaults.colors(
-                selectedIconColor = ThemeColors.primary,
-                selectedTextColor = ThemeColors.primary,
-                indicatorColor = ThemeColors.cardSurface,
-                unselectedIconColor = ThemeColors.textSecondary,
-                unselectedTextColor = ThemeColors.textSecondary
-            )
-        )
-
-        if (hasTutoria) {
-            NavigationBarItem(
-                icon = { Icon(Icons.Filled.Chat, contentDescription = "Tutoría Chat") },
-                label = { Text("Tutoría", fontSize = 10.sp) },
-                selected = selectedTab == "Mensajes",
-                onClick = { onTabSelected("Mensajes") },
-                colors = NavigationBarItemDefaults.colors(
-                    selectedIconColor = ThemeColors.primary,
-                    selectedTextColor = ThemeColors.primary,
-                    indicatorColor = ThemeColors.cardSurface,
-                    unselectedIconColor = ThemeColors.textSecondary,
-                    unselectedTextColor = ThemeColors.textSecondary
+        Surface(
+            shape = RoundedCornerShape(32.dp),
+            color = ThemeColors.surface,
+            border = androidx.compose.foundation.BorderStroke(1.dp, ThemeColors.divider),
+            shadowElevation = 8.dp,
+            modifier = Modifier.height(72.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                horizontalArrangement = Arrangement.SpaceEvenly,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                NavBarItem(
+                    icon = Icons.Filled.Dashboard,
+                    label = "Inicio",
+                    selected = selectedTab == "Inicio",
+                    onClick = { onTabSelected("Inicio") },
+                    modifier = Modifier.weight(1f)
                 )
-            )
-        }
 
-        NavigationBarItem(
-            icon = { Icon(Icons.Filled.Person, contentDescription = "Perfil") },
-            label = { Text("Perfil", fontSize = 10.sp) },
-            selected = selectedTab == "Perfil",
-            onClick = { onTabSelected("Perfil") },
-            colors = NavigationBarItemDefaults.colors(
-                selectedIconColor = ThemeColors.primary,
-                selectedTextColor = ThemeColors.primary,
-                indicatorColor = ThemeColors.cardSurface,
-                unselectedIconColor = ThemeColors.textSecondary,
-                unselectedTextColor = ThemeColors.textSecondary
-            )
-        )
+                if (hasTutoria) {
+                    NavBarItem(
+                        icon = Icons.Filled.Chat,
+                        label = "Tutoría",
+                        selected = selectedTab == "Mensajes",
+                        onClick = { onTabSelected("Mensajes") },
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+
+                NavBarItem(
+                    icon = Icons.Filled.Person,
+                    label = "Perfil",
+                    selected = selectedTab == "Perfil",
+                    onClick = { onTabSelected("Perfil") },
+                    modifier = Modifier.weight(1f)
+                )
+            }
+        }
     }
 }
 

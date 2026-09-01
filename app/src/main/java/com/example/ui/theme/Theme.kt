@@ -42,7 +42,7 @@ object ThemeColors {
         @Composable get() = if (ThemeState.isDarkTheme) CyanPrimaryDark else RedPrimary
 
     val onPrimary: Color
-        @Composable get() = if (ThemeState.isDarkTheme) Color.Black else Color.White
+        @Composable get() = if (ThemeState.isDarkTheme) Color.White else Color.White
 
     val primaryAccent: Color
         @Composable get() = if (ThemeState.isDarkTheme) CyanAccentDark else Color(0xFFFF5252)
@@ -54,13 +54,13 @@ object ThemeColors {
         @Composable get() = Color.Black
 
     val background: Color
-        @Composable get() = if (ThemeState.isDarkTheme) DarkBackground else BackgroundGray
+        @Composable get() = Color.Transparent
 
     val surface: Color
-        @Composable get() = if (ThemeState.isDarkTheme) DarkSurface else Color.White
+        @Composable get() = if (ThemeState.isDarkTheme) DarkGlassSurface else LightGlassSurface
 
     val cardSurface: Color
-        @Composable get() = if (ThemeState.isDarkTheme) DarkCardSurface else Color.White
+        @Composable get() = if (ThemeState.isDarkTheme) DarkGlassSurface else LightGlassSurface
 
     val textPrimary: Color
         @Composable get() = if (ThemeState.isDarkTheme) DarkTextPrimary else BlackTertiary
@@ -69,10 +69,10 @@ object ThemeColors {
         @Composable get() = if (ThemeState.isDarkTheme) DarkTextSecondary else TextGray
 
     val divider: Color
-        @Composable get() = if (ThemeState.isDarkTheme) DarkDivider else DividerGray
+        @Composable get() = if (ThemeState.isDarkTheme) DarkGlassDivider else GlassDivider
 
     val inputBackground: Color
-        @Composable get() = if (ThemeState.isDarkTheme) DarkSurface else Color.White
+        @Composable get() = if (ThemeState.isDarkTheme) DarkGlassSurface else LightGlassSurface
 
     val inputTextColor: Color
         @Composable get() = if (ThemeState.isDarkTheme) DarkTextPrimary else BlackTertiary
